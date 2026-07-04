@@ -34,7 +34,11 @@ def main(argv=None) -> int:
     ap.add_argument("--no-open", action="store_true", help="don't open the browser")
     ap.add_argument("--refresh", action="store_true",
                     help="bypass caches: re-fetch from GitHub and re-call the model")
+    ap.add_argument("--no-spend", action="store_true",
+                    help="never call the API; fail loudly on a plan cache miss")
     args = ap.parse_args(argv)
+    if args.refresh and args.no_spend:
+        ap.error("--refresh forces an API call, which --no-spend forbids")
 
     from ncr import cache
 
@@ -67,6 +71,11 @@ def main(argv=None) -> int:
         pkey = f"plan-{cache.digest(model, system, user)}"
         plan = None if args.refresh else cache.load(pkey)
         if plan is None:
+            if args.no_spend:
+                print(f"✗ --no-spend: no cached plan for this prompt (key {pkey}).\n"
+                      f"  Run once without --no-spend to populate the cache "
+                      f"(model {model} would spend API credits).", file=sys.stderr)
+                return 2
             print(f"› asking {model} to organize the reading path (spends API credits) …",
                   file=sys.stderr)
             plan = run_model(system, user, model=model)
