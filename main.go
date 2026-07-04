@@ -13,10 +13,11 @@ import (
 	"strings"
 )
 
-// ncr CLI — port of ncr/__main__.py.
+// ncr CLI.
 //
-//	ncr <owner/repo> <pr>  [-o out/review.html] [--no-open] [--refresh] [--no-spend]
-//	ncr --diff path/to.diff [--plan plan.json]        # local, no GitHub
+//	ncr <owner/repo> <pr>            # build the review and serve it on localhost
+//	ncr <owner/repo> <pr> --static  # write the HTML file and exit (no server)
+//	ncr --diff path/to.diff [--plan plan.json]   # local render (implies --static)
 //
 // Pipeline: ingest -> index -> plan (LLM) -> normalize -> reconcile -> render.
 
@@ -60,8 +61,9 @@ func run(argv []string) int {
 	diff := fs.String("diff", "", "path to a unified diff (local mode, skip GitHub)")
 	plan := fs.String("plan", "", "path to a reading-plan.json (skip the LLM)")
 	model := fs.String("model", "", "Anthropic model id")
-	out := fs.String("o", "out/review.html", "output HTML path")
-	fs.StringVar(out, "out", "out/review.html", "output HTML path")
+	out := fs.String("o", "out/review.html", "output HTML path (with --static)")
+	fs.StringVar(out, "out", "out/review.html", "output HTML path (with --static)")
+	static := fs.Bool("static", false, "write the HTML file and exit instead of serving")
 	noOpen := fs.Bool("no-open", false, "don't open the browser")
 	refresh := fs.Bool("refresh", false, "bypass caches: re-fetch and re-call the model")
 	noSpend := fs.Bool("no-spend", false, "never call the API; fail loudly on a plan cache miss")
@@ -183,23 +185,32 @@ func run(argv []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
-		return fail(err)
-	}
-	if err := os.WriteFile(*out, html, 0o644); err != nil {
-		return fail(err)
-	}
-	writeJSON(filepath.Join(filepath.Dir(*out), "reading-plan.json"), rplan)
-	writeJSON(filepath.Join(filepath.Dir(*out), "block-index.json"), index)
-	logf("wrote %s", *out)
 
-	if !*noOpen {
-		openBrowser(*out)
+	// --static (and local --diff mode, which has no PR to review) writes the file
+	// and exits; otherwise serve interactively.
+	if *static || *diff != "" {
+		if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
+			return fail(err)
+		}
+		if err := os.WriteFile(*out, html, 0o644); err != nil {
+			return fail(err)
+		}
+		writeJSON(filepath.Join(filepath.Dir(*out), "reading-plan.json"), rplan)
+		writeJSON(filepath.Join(filepath.Dir(*out), "block-index.json"), index)
+		logf("wrote %s", *out)
+		if !*noOpen {
+			openBrowser(*out)
+		}
+		if cov.OK {
+			return 0
+		}
+		return 1
 	}
-	if cov.OK {
-		return 0
+
+	if err := serve(html, !*noOpen); err != nil {
+		return fail(err)
 	}
-	return 1
+	return 0
 }
 
 func ingestCached(repo string, pr int, refresh bool) (PRContext, error) {
@@ -254,14 +265,19 @@ func openBrowser(path string) {
 	if err != nil {
 		abs = path
 	}
+	openTarget(abs)
+}
+
+// openTarget opens a file path or URL in the OS default handler.
+func openTarget(target string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", abs)
+		cmd = exec.Command("open", target)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", abs)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
 	default:
-		cmd = exec.Command("xdg-open", abs)
+		cmd = exec.Command("xdg-open", target)
 	}
 	_ = cmd.Start()
 }
