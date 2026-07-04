@@ -9,6 +9,8 @@ from __future__ import annotations
 import html
 from typing import Optional
 
+from ncr import md
+
 try:
     from pygments import highlight as _pyg_highlight
     from pygments.formatters import HtmlFormatter
@@ -110,7 +112,7 @@ def _diff_html(lines: list, language: str = "", path: str = "") -> str:
 
 def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) -> str:
     blocks = [blocks_by_id[b] for b in unit.get("blocks", []) if b in blocks_by_id]
-    detail = f'<div class="detail">{_esc(unit["detail"])}</div>' if unit.get("detail") else ""
+    detail = f'<div class="detail">{md.render(unit["detail"])}</div>' if unit.get("detail") else ""
 
     # outgoing call links
     calls = []
@@ -130,10 +132,10 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
   <summary>
     {_layer_badge(unit.get('layer'))}
     <code class="sym">{sym}</code>
-    <span class="one">{_esc(unit.get('summary', ''))}</span>
+    <span class="one">{md.to_text(unit.get('summary', ''))}</span>
   </summary>
   <div class="body">
-    <div class="sumfull">{_esc(unit.get('summary', ''))}</div>
+    <div class="sumfull">{md.render(unit.get('summary', ''))}</div>
     {detail}
     <div class="meta">{_esc(unit.get('file',''))} · {blocks_tag} · {_esc(unit.get('layerReason',''))}</div>
     {calls_html}
@@ -164,7 +166,7 @@ def build_html(plan: dict, index: dict) -> str:
         sections.append(f"""
 <section class="chapter">
   <h2>{_esc(ch.get('title',''))}</h2>
-  <p class="chsum">{_esc(ch.get('summary',''))}</p>
+  <p class="chsum">{md.render(ch.get('summary',''))}</p>
   {nodes}
 </section>""")
 
@@ -197,7 +199,7 @@ def build_html(plan: dict, index: dict) -> str:
     <h1>{title}<span class="prtag">{pr_tag}</span></h1>
     <span class="cov {badge_cls}">{cov_text}</span>
   </div>
-  <p class="overview">{_esc(plan.get('overview',''))}</p>
+  <p class="overview">{md.render(plan.get('overview',''))}</p>
   <div class="controls">
     <button onclick="document.querySelectorAll('details').forEach(d=>d.open=true)">Expand all</button>
     <button onclick="document.querySelectorAll('details').forEach(d=>d.open=false)">Collapse all</button>
@@ -238,6 +240,8 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .one{color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .body{padding:12px 14px}
 .sumfull{color:var(--fg);margin-bottom:8px}
+.sumfull code,.detail code,.chsum code,.overview code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef2f7;color:#0f172a;padding:1px 5px;border-radius:4px}
+.sumfull p,.detail p,.overview p{margin:0 0 8px}
 .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
 .detail{color:#475569;margin-bottom:8px}
 .calls{font-size:13px;color:var(--muted);margin-bottom:8px}
