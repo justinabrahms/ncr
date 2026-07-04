@@ -49,18 +49,20 @@ Follow these principles:
    it in a unit with `layer: 5, "uncertain": true` rather than omitting it. Never drop a
    block, a deletion, or a config change.
 
-6. **Keep units coarse; split rarely.** A unit should be one coherent piece of the change —
-   a function, a type, a logically-single edit — not a fragment. Err strongly toward **fewer,
-   larger units**; a handful per chapter, not one per hunk. When several small blocks are part
-   of the same logical change, put them in *one* unit. Do not manufacture a unit for every
-   comment tweak or import.
+6. **One unit per symbol; never "(continued)".** A unit is one coherent piece of the change —
+   a function or type and all of its changed blocks together. Attribute each block to the
+   symbol it belongs to using the **full file contents** below; the hunk `@@` header names the
+   *old* structure and is unreliable after a rewrite (a brand-new helper can sit under a stale
+   `func other` header). Gather all blocks of one symbol into a single unit, labeled by that
+   symbol. **Never** emit a `foo` and a `foo (continued)` pair, and never split one symbol's
+   changes across units. If you genuinely can't separate a run of blocks into distinct named
+   symbols, keep them in **one** unit rather than chopping by size. Err toward fewer, larger
+   units; don't manufacture a unit for every comment tweak or import.
 
-   You *may* split a single block across units — reference the whole block by id (`"b012"`),
-   or a 1-based line sub-range of its `text` (`"b012:1-20"`) — but only when one physical block
-   truly mixes **separate concerns that belong to different chapters** (e.g. two unrelated
-   functions added together). This is the exception, not the default. **Never split a single
-   function across units**; cut only at declaration boundaries. The segments for a block must
-   still cover its lines exactly once.
+   Splitting a *single block* across units (whole id `"b012"`, or a line sub-range
+   `"b012:1-20"`) is a rare exception — only when one physical block truly mixes separate
+   concerns that belong to different chapters, and never mid-function. However you reference
+   blocks, the segments must cover every changed line exactly once.
 
 ## User
 
