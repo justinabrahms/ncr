@@ -1,4 +1,4 @@
-module github.com/justinabrahms/narrative-code-review
+module github.com/justinabrahms/ncr
 
 go 1.25
 

@@ -6,7 +6,7 @@ services beyond the `gh` CLI and the Anthropic API.
 ## Build & run
 
 ```sh
-go build -o ncr .        # or: go install github.com/justinabrahms/narrative-code-review@latest
+go build -o ncr .        # or: go install github.com/justinabrahms/ncr@latest
 go test ./...            # index + reconcile specs
 ```
 

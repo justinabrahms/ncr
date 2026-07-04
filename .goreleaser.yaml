@@ -1,0 +1,45 @@
+# GoReleaser config — cross-compiled binaries + archives + checksums on tag push.
+# https://goreleaser.com  (validate locally with `goreleaser check`)
+version: 2
+
+project_name: ncr
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ncr
+    binary: ncr
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: ncr
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto

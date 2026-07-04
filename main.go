@@ -19,6 +19,9 @@ import (
 //
 // Pipeline: ingest -> index -> plan (LLM) -> normalize -> reconcile -> render.
 
+// version is set at release time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -33,6 +36,7 @@ func run(argv []string) int {
 	noOpen := fs.Bool("no-open", false, "don't open the browser")
 	refresh := fs.Bool("refresh", false, "bypass caches: re-fetch and re-call the model")
 	noSpend := fs.Bool("no-spend", false, "never call the API; fail loudly on a plan cache miss")
+	showVersion := fs.Bool("version", false, "print version and exit")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: ncr <owner/repo> <pr>  |  ncr --diff FILE [--plan FILE]")
 		fs.PrintDefaults()
@@ -40,6 +44,10 @@ func run(argv []string) int {
 	flags, pos := reorderArgs(argv)
 	if err := fs.Parse(flags); err != nil {
 		return 2
+	}
+	if *showVersion {
+		fmt.Println("ncr", version)
+		return 0
 	}
 	if *refresh && *noSpend {
 		fmt.Fprintln(os.Stderr, "error: --refresh forces an API call, which --no-spend forbids")
