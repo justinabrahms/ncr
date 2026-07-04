@@ -9,3 +9,7 @@ __pycache__/
 java-sdk/
 .venv/
 .ncr-cache/
+
+# go build artifacts
+go/go
+/tmp/ncr-render
