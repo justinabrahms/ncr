@@ -4,7 +4,6 @@
 paths — instead of alphabetical-by-filename.**
 
 [![CI](https://github.com/justinabrahms/ncr/actions/workflows/ci.yml/badge.svg)](https://github.com/justinabrahms/ncr/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/justinabrahms/ncr)](https://goreportcard.com/report/github.com/justinabrahms/ncr)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `ncr` takes a GitHub PR and produces a single HTML page that reorders the diff into
