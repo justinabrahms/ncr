@@ -49,6 +49,7 @@ release:
 # token that can push to the tap repo) — set in the release workflow.
 brews:
   - name: ncr
+    directory: Formula # Homebrew 5.x only discovers formulae under Formula/
     repository:
       owner: justinabrahms
       name: homebrew-tap

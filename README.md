@@ -37,12 +37,12 @@ connect, and leaves the judgment to you.
 ## Install
 
 ```sh
-go install github.com/justinabrahms/ncr@latest
+brew install justinabrahms/tap/ncr
 ```
 
-…or grab a prebuilt binary from [Releases](https://github.com/justinabrahms/ncr/releases).
-You'll need the [`gh`](https://cli.github.com/) CLI (authenticated) and an
-`ANTHROPIC_API_KEY`.
+…or `go install github.com/justinabrahms/ncr@latest`, or grab a prebuilt binary from
+[Releases](https://github.com/justinabrahms/ncr/releases). You'll need the
+[`gh`](https://cli.github.com/) CLI (authenticated) and an `ANTHROPIC_API_KEY`.
 
 ## Usage
 
