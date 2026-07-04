@@ -46,7 +46,11 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .diff .del{background:rgba(248,113,113,.14)}
 .diff .del .gutter{color:#f87171}
 .diff .ctx{opacity:.62}
-.diff .sep{color:#75715e;user-select:none}`
+.diff .sep{color:#75715e;user-select:none}
+.diffwrap{position:relative}
+.wstoggle{position:absolute;top:6px;right:10px;z-index:1;font:11px ui-monospace,monospace;padding:2px 8px;border-radius:6px;border:1px solid #3a3f36;background:#1e2019;color:#c9d1d9;cursor:pointer;opacity:.55}
+.wstoggle:hover{opacity:1}
+.diff.ws-hide .l.wsn{display:none}`
 
 var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -72,6 +76,11 @@ var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <script>
 document.getElementById('xall').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=true})};
 document.getElementById('call').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=false})};
+document.querySelectorAll('.wstoggle').forEach(function(btn){btn.onclick=function(){
+  var pre=btn.parentElement.querySelector('pre.diff');
+  var hidden=pre.classList.toggle('ws-hide');
+  btn.textContent=hidden?'show whitespace':'hide whitespace';
+}});
 </script>
 {{if .Interactive}}<link rel="stylesheet" href="/review.css"><script src="/review.js" defer></script>{{end}}
 </body></html>

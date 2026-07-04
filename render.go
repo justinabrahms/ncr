@@ -109,16 +109,46 @@ func strip(l string) string {
 type diffItem struct {
 	dl  *DiffLine
 	sep bool
+	wsn bool // whitespace-only noise (matches a counterpart on the other side)
+}
+
+func collapseWS(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// wsNoise flags changed lines whose content is identical to a line on the other
+// side once whitespace is collapsed — e.g. a realignment (gofmt) that rewrites a
+// whole block with no real change. Returns a per-line mask.
+func wsNoise(b Block) []bool {
+	del, add := map[string]int{}, map[string]int{}
+	for _, l := range b.Lines {
+		c := collapseWS(strip(l.Text))
+		switch l.Kind {
+		case "del":
+			del[c]++
+		case "add":
+			add[c]++
+		}
+	}
+	out := make([]bool, len(b.Lines))
+	for i, l := range b.Lines {
+		c := collapseWS(strip(l.Text))
+		out[i] = (l.Kind == "del" && add[c] > 0) || (l.Kind == "add" && del[c] > 0)
+	}
+	return out
 }
 
 func diffHTML(blocks []Block, language, path string) template.HTML {
 	var items []diffItem
+	hasNoise := false
 	for bi := range blocks {
 		if bi > 0 {
 			items = append(items, diffItem{sep: true})
 		}
+		noise := wsNoise(blocks[bi])
 		for li := range blocks[bi].Lines {
-			items = append(items, diffItem{dl: &blocks[bi].Lines[li]})
+			items = append(items, diffItem{dl: &blocks[bi].Lines[li], wsn: noise[li]})
+			if noise[li] {
+				hasNoise = true
+			}
 		}
 	}
 	var codeLines []string
@@ -130,6 +160,10 @@ func diffHTML(blocks []Block, language, path string) template.HTML {
 	hl := highlightLines(strings.Join(codeLines, "\n"), language, path, len(codeLines))
 
 	var b strings.Builder
+	b.WriteString(`<div class="diffwrap">`)
+	if hasNoise {
+		b.WriteString(`<button type="button" class="wstoggle">hide whitespace</button>`)
+	}
 	b.WriteString(`<pre class="chroma diff">`)
 	k := 0
 	for _, it := range items {
@@ -150,13 +184,16 @@ func diffHTML(blocks []Block, language, path string) template.HTML {
 		case "del":
 			cls, mark, side, lineNo = "del", "-", "LEFT", dl.OldNo
 		}
+		if it.wsn {
+			cls += " wsn"
+		}
 		// data-* attributes anchor a click to a GitHub review position.
 		fmt.Fprintf(&b,
 			`<span class="l %s" data-path="%s" data-side="%s" data-line="%d" data-text="%s"><span class="gutter">%s</span>%s</span>`,
 			cls, template.HTMLEscapeString(path), side, lineNo,
 			template.HTMLEscapeString(strip(dl.Text)), mark, code)
 	}
-	b.WriteString("</pre>")
+	b.WriteString("</pre></div>")
 	return template.HTML(b.String())
 }
 
