@@ -40,25 +40,15 @@ later (see `docs/design.md`).
 
 ## Usage
 
-A single Go binary — no runtime, no deps to install. Needs the `gh` CLI (for PR ingest)
-and `ANTHROPIC_API_KEY` (for the plan step).
+A single Go binary. It needs the [`gh`](https://cli.github.com/) CLI (for PR ingest) and
+`ANTHROPIC_API_KEY` (for the reordering step).
 
 ```sh
-go build -o ncr .        # or: go install github.com/justinabrahms/narrative-code-review@latest
-
-# From a GitHub PR (uses your `gh` auth)
-./ncr owner/name 812
-
-# Local, no GitHub / no API — render a diff with a supplied reading plan
-./ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
+ncr owner/name 812
 ```
 
-Flags: `-o out.html`, `--no-open`, `--refresh` (bust caches), `--no-spend` (never call the
-API — fail loudly on a plan cache miss), `--model <id>`.
-
-Pipeline: **ingest (`gh`) → index (deterministic) → plan (LLM) → normalize → reconcile
-(deterministic) → render → `out/review.html`** (opens in your browser). The plan is cached
-by a hash of the exact prompt, so iterating on presentation re-renders for free.
+It writes `out/review.html` and opens it. Build instructions, flags, the pipeline, and the
+package layout are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Non-negotiable: nothing gets forgotten
 
@@ -68,20 +58,9 @@ only references those ids; a deterministic reconciler proves by set-equality tha
 block was placed, and renders code verbatim from the index. So a model can't silently drop,
 truncate, or alter a hunk. See `docs/completeness.md`.
 
-## Layout
+## More
 
-Single Go package (`package main`) at the repo root:
-
-| file | role |
-|------|------|
-| `index.go` | deterministic diff → stable-ID'd change blocks (+ context) |
-| `reconcile.go` | coverage guarantee: every block placed, else auto-repaired |
-| `normalize.go` | coerce flexible model JSON into the canonical plan |
-| `plan.go` | build the prompt + call the Anthropic Messages API |
-| `ingest.go` | pull the PR via `gh` | 
-| `cache.go` | content-addressed cache (ingest + plan) |
-| `render.go`, `templates.go`, `md.go` | HTML (chroma highlighting + `html/template`) |
-| `prompts/` | LLM prompts, embedded via `go:embed` |
-
-Design notes live in `docs/` (`design.md`, `completeness.md`, `ingest.md`, `schema.md`) and
-the language decision in `docs/adr-001-go-cli.md`. Run the tests with `go test ./...`.
+Building, running, the pipeline, and how the code is laid out:
+[CONTRIBUTING.md](CONTRIBUTING.md). Design notes live in `docs/`
+(`design.md`, `completeness.md`, `ingest.md`, `schema.md`), with the language choice in
+`docs/adr-001-go-cli.md`.
