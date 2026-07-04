@@ -1,0 +1,58 @@
+diff --git a/api/openapi.yaml b/api/openapi.yaml
+index 1111111..2222222 100644
+--- a/api/openapi.yaml
++++ b/api/openapi.yaml
+@@ -10,6 +10,11 @@ paths:
+   /health:
+     get:
+       responses: { '200': { description: ok } }
++  /orders:
++    post:
++      requestBody:
++        content: { application/json: { schema: { $ref: '#/Order' } } }
++      responses: { '201': { description: created } }
+diff --git a/internal/order/handler.go b/internal/order/handler.go
+index 3333333..4444444 100644
+--- a/internal/order/handler.go
++++ b/internal/order/handler.go
+@@ -20,3 +20,16 @@ func (h *OrderHandler) Health(w http.ResponseWriter, r *http.Request) {
+ 	w.WriteHeader(200)
+ }
++
++func (h *OrderHandler) Place(w http.ResponseWriter, r *http.Request) {
++	var req PlaceOrderRequest
++	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
++		http.Error(w, "bad request", 400)
++		return
++	}
++	id, err := h.svc.Place(r.Context(), req)
++	if err != nil {
++		http.Error(w, err.Error(), 500)
++		return
++	}
++	json.NewEncoder(w).Encode(map[string]string{"id": id})
++}
+diff --git a/internal/order/service.go b/internal/order/service.go
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/internal/order/service.go
+@@ -0,0 +1,9 @@
++package order
++
++type Service struct{ repo *Repo }
++
++func (s *Service) Place(ctx context.Context, req PlaceOrderRequest) (string, error) {
++	o := NewOrder(req.Items)
++	return s.repo.Insert(ctx, o)
++}
+diff --git a/migrations/002_orders.sql b/migrations/002_orders.sql
+new file mode 100644
+index 0000000..6666666
+--- /dev/null
++++ b/migrations/002_orders.sql
+@@ -0,0 +1,4 @@
++CREATE TABLE orders (
++  id UUID PRIMARY KEY,
++  total_cents INT NOT NULL
++);
