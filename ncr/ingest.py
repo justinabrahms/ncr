@@ -53,10 +53,13 @@ def get_pr_context(pr: int, repo: Optional[str] = None, fetch_files: bool = True
 
 
 def _fetch_file(repo: str, path: str, ref: str) -> str:
+    # ref goes in the query string: passing it via -f/-F would flip gh to POST,
+    # which the contents API rejects.
+    endpoint = f"repos/{repo}/contents/{path}"
+    if ref:
+        endpoint += f"?ref={ref}"
     try:
-        payload = json.loads(_gh(
-            "api", f"repos/{repo}/contents/{path}", "-f", f"ref={ref}",
-        ))
+        payload = json.loads(_gh("api", endpoint))
     except RuntimeError:
         return ""  # deleted file or path unavailable at head
     if payload.get("encoding") != "base64":
