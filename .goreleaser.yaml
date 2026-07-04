@@ -43,3 +43,26 @@ changelog:
 release:
   draft: false
   prerelease: auto
+
+# Publish a Homebrew formula to justinabrahms/homebrew-tap on each release, so
+# `brew install justinabrahms/tap/ncr` works. Needs HOMEBREW_TAP_GITHUB_TOKEN (a
+# token that can push to the tap repo) — set in the release workflow.
+brews:
+  - name: ncr
+    repository:
+      owner: justinabrahms
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/justinabrahms/ncr"
+    description: "Read a pull request outside-in, following call paths — not alphabetical."
+    license: MIT
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser-bot@users.noreply.github.com
+    dependencies:
+      - name: gh
+    install: |
+      bin.install "ncr"
+    test: |
+      system "#{bin}/ncr", "--version"
