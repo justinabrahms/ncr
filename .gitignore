@@ -16,3 +16,6 @@ go/go
 
 # go binary
 /ncr
+
+# claude code local
+.claude/
