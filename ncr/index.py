@@ -5,6 +5,10 @@ of truth. A change block is a maximal run of added/removed lines (context lines
 break blocks). Every block gets a stable id and a content hash, so the reconciler
 can prove coverage by set-equality and the renderer can show verbatim code that
 the LLM never touched. See docs/completeness.md.
+
+Each block also carries up to CONTEXT surrounding unchanged lines (contextBefore/
+contextAfter) purely for display — they are NOT part of `text`/`sha`, so coverage
+accounting stays exactly the changed lines.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 _HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$")
+CONTEXT = 3  # unchanged lines to show on each side of a block
 
 
 @dataclass
@@ -29,9 +34,10 @@ class Block:
     header: str  # the @@ ... @@ line this block came from
     text: str  # verbatim prefixed diff lines ("+"/"-"), newline-joined
     sha: str
+    context_before: list = field(default_factory=list)  # raw " " lines, display only
+    context_after: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        # camelCase for the JSON contract in docs/schema.md
         return {
             "blockId": self.block_id,
             "path": self.path,
@@ -43,6 +49,8 @@ class Block:
             "header": self.header,
             "text": self.text,
             "sha": self.sha,
+            "contextBefore": self.context_before,
+            "contextAfter": self.context_after,
         }
 
 
@@ -50,7 +58,15 @@ class Block:
 class _FileDiff:
     path: str
     change_type: str
-    body: list[str] = field(default_factory=list)
+    body: list = field(default_factory=list)
+
+
+@dataclass
+class _Rec:
+    kind: str  # ctx | add | del
+    raw: str
+    old_no: int
+    new_no: int
 
 
 def _sha(text: str) -> str:
@@ -66,9 +82,9 @@ def _clean_path(new_path: Optional[str], old_path: Optional[str]) -> str:
     return p
 
 
-def _split_files(diff: str) -> list[_FileDiff]:
+def _split_files(diff: str) -> list:
     """Split a unified diff into per-file sections."""
-    files: list[_FileDiff] = []
+    files: list = []
     cur: Optional[_FileDiff] = None
     old_path = None
     change_type = "modified"
@@ -94,68 +110,85 @@ def _split_files(diff: str) -> list[_FileDiff]:
     return files
 
 
-def index_diff(diff: str) -> list[Block]:
+def _records(body: list) -> list:
+    """Flatten a file body's hunks into typed line records with file line numbers."""
+    recs: list = []
+    old_no = new_no = 0
+    header = ""
+    for line in body:
+        m = _HUNK_RE.match(line)
+        if m:
+            old_no, new_no = int(m.group(1)), int(m.group(3))
+            header = line
+            recs.append(_Rec("hunk", header, 0, 0))
+            continue
+        tag = line[0] if line else " "
+        if tag == "+":
+            recs.append(_Rec("add", line, 0, new_no)); new_no += 1
+        elif tag == "-":
+            recs.append(_Rec("del", line, old_no, 0)); old_no += 1
+        elif tag == "\\":
+            continue  # "\ No newline at end of file" — not a code line
+        else:
+            recs.append(_Rec("ctx", line, old_no, new_no)); old_no += 1; new_no += 1
+    return recs
+
+
+def index_diff(diff: str) -> list:
     """Parse a unified diff into an ordered list of change blocks with stable ids."""
-    blocks: list[Block] = []
+    blocks: list = []
     counter = 0
     for fd in _split_files(diff):
-        old_no = new_no = 0
+        recs = _records(fd.body)
+        # find the header governing each record (nearest preceding "hunk")
         header = ""
-        run: list[tuple[str, str]] = []  # (prefix, raw_line) for the current block
-        run_old_start = run_new_start = 0
-
-        def flush() -> None:
-            nonlocal counter, run
-            if not run:
-                return
-            counter += 1
-            removed = sum(1 for t, _ in run if t == "-")
-            added = sum(1 for t, _ in run if t == "+")
-            text = "\n".join(raw for _, raw in run)
-            blocks.append(
-                Block(
-                    block_id=f"b{counter:03d}",
-                    path=fd.path,
-                    change_type=fd.change_type,
-                    old_start=run_old_start if removed else None,
-                    old_lines=removed,
-                    new_start=run_new_start if added else None,
-                    new_lines=added,
-                    header=header,
-                    text=text,
-                    sha=_sha(text),
-                )
-            )
-            run = []
-
-        for line in fd.body:
-            m = _HUNK_RE.match(line)
-            if m:
-                flush()
-                old_no = int(m.group(1))
-                new_no = int(m.group(3))
-                header = line
+        i = 0
+        while i < len(recs):
+            r = recs[i]
+            if r.kind == "hunk":
+                header = r.raw
+                i += 1
                 continue
-
-            tag = line[0] if line else " "
-            if tag in ("+", "-"):
-                if not run:
-                    run_old_start, run_new_start = old_no, new_no
-                run.append((tag, line))
-                if tag == "+":
-                    new_no += 1
-                else:
-                    old_no += 1
-            elif tag == "\\":
-                # "\ No newline at end of file" — attach, no line advance
-                if run:
-                    run.append((" ", line))
-            else:  # context (space prefix) or blank line inside a hunk
-                flush()
-                old_no += 1
-                new_no += 1
-        flush()
+            if r.kind == "ctx":
+                i += 1
+                continue
+            # start of a changed run
+            j = i
+            while j < len(recs) and recs[j].kind in ("add", "del"):
+                j += 1
+            run = recs[i:j]
+            counter += 1
+            removed = [x for x in run if x.kind == "del"]
+            added = [x for x in run if x.kind == "add"]
+            text = "\n".join(x.raw for x in run)
+            before = [x.raw for x in _neighbors(recs, i - 1, -1)]
+            after = [x.raw for x in _neighbors(recs, j, 1)]
+            blocks.append(Block(
+                block_id=f"b{counter:03d}",
+                path=fd.path,
+                change_type=fd.change_type,
+                old_start=removed[0].old_no if removed else None,
+                old_lines=len(removed),
+                new_start=added[0].new_no if added else None,
+                new_lines=len(added),
+                header=header,
+                text=text,
+                sha=_sha(text),
+                context_before=before,
+                context_after=after,
+            ))
+            i = j
     return blocks
+
+
+def _neighbors(recs: list, start: int, step: int) -> list:
+    """Up to CONTEXT consecutive ctx records from `start` going `step` direction."""
+    out: list = []
+    k = start
+    while 0 <= k < len(recs) and recs[k].kind == "ctx" and len(out) < CONTEXT:
+        out.append(recs[k])
+        k += step
+    return out[::-1] if step < 0 else out
 
 
 def build_index(diff: str) -> dict:

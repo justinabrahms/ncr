@@ -13,8 +13,10 @@ The inter-stage contract. `reading-plan.json` (the UI input) is the union of eve
   "changeType": "modified",         // added|modified|deleted|renamed
   "oldStart": 40, "oldLines": 0,    // null side for pure adds/deletes
   "newStart": 40, "newLines": 12,
-  "text": "@@ ... @@\n+ ...",        // verbatim diff text; what the UI renders
-  "sha": "sha256:…"                 // hash of text; asserts nothing drifted
+  "text": "+ ...",                   // verbatim changed (+/-) lines; what coverage counts
+  "sha": "sha256:…",                // hash of text; asserts nothing drifted
+  "contextBefore": [" ...", " ..."], // up to 3 surrounding unchanged lines, display only
+  "contextAfter":  [" ...", " ..."]  // NOT part of text/sha, so coverage == changed lines
 }
 ```
 

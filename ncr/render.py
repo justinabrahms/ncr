@@ -69,17 +69,37 @@ def _highlight_lines(code: str, lexer) -> list[str]:
     return lines
 
 
-def _diff_html(text: str, language: str = "", path: str = "") -> str:
-    lines = text.splitlines()
-    prefixes = [l[:1] for l in lines]
-    # highlight the block's code as a whole (so multi-line constructs resolve),
-    # with the +/- marker column stripped first
-    stripped = "\n".join(l[1:] if l[:1] in "+- " else l for l in lines)
+_SEP = "\x00sep"
+
+
+def _unit_lines(blocks: list) -> list:
+    """Prefixed diff lines for a unit: each block's context + changes, with a
+    divider between non-contiguous blocks."""
+    lines: list = []
+    for i, blk in enumerate(blocks):
+        if i:
+            lines.append(_SEP)
+        lines.extend(blk.get("contextBefore", []))
+        lines.extend((blk.get("text", "") or "").split("\n"))
+        lines.extend(blk.get("contextAfter", []))
+    return lines
+
+
+def _diff_html(lines: list, language: str = "", path: str = "") -> str:
+    code_lines = [l for l in lines if l != _SEP]
+    # highlight the code as a whole (so multi-line constructs resolve), with the
+    # +/- / context marker column stripped first
+    stripped = "\n".join(l[1:] if l[:1] in "+- " else l for l in code_lines)
     hl = _highlight_lines(stripped, _lexer(language, path))
-    if len(hl) != len(lines):  # highlighter disagreed on line count; fall back safely
-        hl = [_esc(l[1:] if l[:1] in "+- " else l) for l in lines]
-    rows = []
-    for prefix, code in zip(prefixes, hl):
+    if len(hl) != len(code_lines):  # highlighter disagreed on line count; fall back
+        hl = [_esc(l[1:] if l[:1] in "+- " else l) for l in code_lines]
+    rows, k = [], 0
+    for line in lines:
+        if line == _SEP:
+            rows.append('<span class="l sep"><span class="gutter">⋯</span></span>')
+            continue
+        code = hl[k]; k += 1
+        prefix = line[:1]
         cls = {"+": "add", "-": "del"}.get(prefix, "ctx")
         mark = prefix if prefix in "+-" else " "
         rows.append(f'<span class="l {cls}"><span class="gutter">{mark}</span>{code or " "}</span>')
@@ -89,7 +109,7 @@ def _diff_html(text: str, language: str = "", path: str = "") -> str:
 
 
 def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) -> str:
-    code = "\n".join(blocks_by_id.get(b, {}).get("text", "") for b in unit.get("blocks", []))
+    blocks = [blocks_by_id[b] for b in unit.get("blocks", []) if b in blocks_by_id]
     detail = f'<div class="detail">{_esc(unit["detail"])}</div>' if unit.get("detail") else ""
 
     # outgoing call links
@@ -102,7 +122,7 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
                 calls.append('<span class="ext">↳ into unchanged code</span>')
     calls_html = f'<div class="calls">calls: {", ".join(calls)}</div>' if calls else ""
 
-    diff = _diff_html(code, unit.get("language", ""), unit.get("file", ""))
+    diff = _diff_html(_unit_lines(blocks), unit.get("language", ""), unit.get("file", ""))
     sym = _esc(unit.get("symbol") or unit.get("file", ""))
     blocks_tag = " ".join(unit.get("blocks", []))
     return f"""
@@ -228,4 +248,6 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .diff .add .gutter{color:#4ade80}
 .diff .del{background:rgba(248,113,113,.14)}
 .diff .del .gutter{color:#f87171}
+.diff .ctx{opacity:.62}
+.diff .sep{color:#75715e;user-select:none}
 """

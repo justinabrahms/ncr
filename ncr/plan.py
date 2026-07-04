@@ -94,12 +94,20 @@ def build_prompt(block_index: dict, files: dict, comments: list, meta: dict) -> 
     """
     system, user_tmpl = load_prompt()
     files_txt = "\n\n".join(f"=== {p} ===\n{t}" for p, t in (files or {}).items())
+    # The model doesn't need display-only context lines; omitting them keeps the
+    # prompt (and thus the plan cache key) stable as the renderer evolves.
+    _drop = ("contextBefore", "contextAfter")
+    slim = {
+        "blocks": [{k: v for k, v in b.items() if k not in _drop}
+                   for b in block_index.get("blocks", [])],
+        "blockIds": block_index.get("blockIds", []),
+    }
     user = render_user(
         user_tmpl,
         prTitle=meta.get("title", ""),
         prNumber=meta.get("number", ""),
         prDescription=meta.get("body", ""),
-        blockIndex=json.dumps(block_index, indent=0),
+        blockIndex=json.dumps(slim, indent=0),
         files=files_txt or "(not provided)",
         comments=json.dumps(comments or [], indent=0),
     )
