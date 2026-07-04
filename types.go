@@ -79,18 +79,25 @@ type Index struct {
 }
 
 type Block struct {
-	BlockID       string   `json:"blockId"`
-	Path          string   `json:"path"`
-	ChangeType    string   `json:"changeType"`
-	OldStart      *int     `json:"oldStart"`
-	OldLines      int      `json:"oldLines"`
-	NewStart      *int     `json:"newStart"`
-	NewLines      int      `json:"newLines"`
-	Header        string   `json:"header"`
-	Text          string   `json:"text"`
-	Sha           string   `json:"sha"`
-	ContextBefore []string `json:"contextBefore"`
-	ContextAfter  []string `json:"contextAfter"`
+	BlockID    string     `json:"blockId"`
+	Path       string     `json:"path"`
+	ChangeType string     `json:"changeType"`
+	OldStart   *int       `json:"oldStart"`
+	OldLines   int        `json:"oldLines"`
+	NewStart   *int       `json:"newStart"`
+	NewLines   int        `json:"newLines"`
+	Header     string     `json:"header"`
+	Text       string     `json:"text"` // changed (+/-) lines only; what coverage counts
+	Sha        string     `json:"sha"`
+	Lines      []DiffLine `json:"lines"` // rendered lines (context + changed) with numbers
+}
+
+// DiffLine is one rendered line with its file positions, for display + anchoring.
+type DiffLine struct {
+	Kind  string `json:"kind"` // ctx | add | del
+	Text  string `json:"text"` // raw line incl. +/-/space prefix
+	OldNo int    `json:"oldNo"`
+	NewNo int    `json:"newNo"`
 }
 
 // ---- raw model output (flexible; normalized into ReadingPlan) ----

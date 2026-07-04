@@ -47,12 +47,13 @@ You'll need the [`gh`](https://cli.github.com/) CLI (authenticated) and an
 ## Usage
 
 ```sh
-ncr owner/name 812
+ncr owner/name 812              # build the review, serve it locally, open the browser
+ncr owner/name 812 --static     # write out/review.html and exit (no server)
 ```
 
-Writes `out/review.html` and opens it. Local, no GitHub/API:
-`ncr --diff some.diff --plan plan.json`. Flags, the pipeline, and the code layout are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Serving is the default (it's where inline commenting will live). Local render with no
+GitHub/API: `ncr --diff some.diff --plan plan.json`. Flags, the pipeline, and the code
+layout are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Nothing gets forgotten
 

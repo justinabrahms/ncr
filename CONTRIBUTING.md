@@ -15,12 +15,17 @@ PR ingest) and `ANTHROPIC_API_KEY` (the plan step). Neither is needed for `--dif
 local mode.
 
 ```sh
-./ncr owner/name 812                                    # from a GitHub PR
+./ncr owner/name 812                                    # serve the review on localhost
+./ncr owner/name 812 --static                           # write the HTML and exit
 ./ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
 ```
 
-Flags: `-o out.html`, `--no-open`, `--refresh` (bust caches), `--no-spend` (never call the
-API — fail loudly on a plan cache miss), `--model <id>`.
+By default `ncr` serves the review over localhost (the home for inline commenting, being
+built per `docs/design-review-comments.md`). `--static` writes the HTML file instead;
+`--diff` local mode implies `--static`.
+
+Flags: `--static`, `-o out.html`, `--no-open`, `--refresh` (bust caches), `--no-spend`
+(never call the API — fail loudly on a plan cache miss), `--model <id>`, `--version`.
 
 ## Pipeline
 

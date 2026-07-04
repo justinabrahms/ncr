@@ -1,0 +1,47 @@
+/* Interactive review UI (served only in `ncr serve` mode). */
+
+.diff .l { position: relative; }
+.diff .l[data-line] { cursor: pointer; }
+.diff .l[data-line]:hover { background: rgba(255, 255, 255, .06); }
+.diff .l.sel { background: rgba(56, 139, 253, .28) !important; }
+.diff .l[data-line]:hover .gutter::after { content: "+"; color: #58a6ff; }
+.diff .l.sel .gutter::after { content: ""; }
+
+/* inline composer + threads live in the light body, not the dark diff */
+.ncr-box { margin: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #1e293b; font: 14px/1.5 -apple-system, system-ui, sans-serif; white-space: normal; }
+.ncr-box textarea, .ncr-box input { color: #1e293b; }
+.ncr-compose { padding: 10px; }
+.ncr-compose textarea { width: 100%; min-height: 68px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; resize: vertical; }
+.ncr-compose .where { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.ncr-actions { margin-top: 8px; display: flex; gap: 8px; }
+.ncr-btn { font: 13px inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+.ncr-btn.primary { background: #1f883d; border-color: #1f883d; color: #fff; }
+.ncr-btn.danger { color: #cf222e; }
+.ncr-btn:disabled { opacity: .5; cursor: default; }
+
+.ncr-thread { padding: 10px 12px; }
+.ncr-thread .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.ncr-thread .body { white-space: pre-wrap; }
+.ncr-thread.submitted { opacity: .6; background: #f6f8fa; }
+.ncr-thread .row { display: flex; gap: 10px; margin-top: 6px; }
+.ncr-thread .row a { font-size: 13px; color: #0969da; cursor: pointer; text-decoration: none; }
+
+/* bottom-right review tray */
+#ncr-tray { position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; gap: 10px; align-items: center;
+  background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.14); font: 14px -apple-system, system-ui, sans-serif; }
+#ncr-tray .count { color: var(--muted); }
+
+/* submit modal */
+#ncr-modal { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; display: none; align-items: flex-start; justify-content: center; }
+#ncr-modal.show { display: flex; }
+#ncr-modal .panel { background: #fff; margin-top: 6vh; width: min(680px, 92vw); max-height: 86vh; overflow: auto; border-radius: 12px; padding: 20px 22px; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+#ncr-modal h2 { margin: 0 0 12px; font-size: 18px; }
+#ncr-modal textarea { width: 100%; min-height: 90px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+#ncr-modal .verdicts { display: flex; gap: 16px; margin: 12px 0; flex-wrap: wrap; }
+#ncr-modal .verdicts label { display: flex; gap: 6px; align-items: center; }
+#ncr-modal .clist { margin: 12px 0; border-top: 1px solid var(--line); }
+#ncr-modal .citem { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+#ncr-modal .citem.bad { color: #cf222e; }
+#ncr-modal .citem code { background: #eef2f7; padding: 1px 5px; border-radius: 4px; }
+#ncr-modal .errbar { color: #cf222e; margin: 8px 0; }
+#ncr-modal .foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }

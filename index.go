@@ -94,10 +94,10 @@ func records(body []string) []rec {
 		}
 		switch tag {
 		case '+':
-			recs = append(recs, rec{kind: "add", raw: line, newNo: newNo})
+			recs = append(recs, rec{kind: "add", raw: line, oldNo: oldNo, newNo: newNo})
 			newNo++
 		case '-':
-			recs = append(recs, rec{kind: "del", raw: line, oldNo: oldNo})
+			recs = append(recs, rec{kind: "del", raw: line, oldNo: oldNo, newNo: newNo})
 			oldNo++
 		case '\\':
 			// "\ No newline at end of file" — not a code line
@@ -110,10 +110,10 @@ func records(body []string) []rec {
 	return recs
 }
 
-func neighbors(recs []rec, start, step int) []string {
-	var out []string
+func neighborRecs(recs []rec, start, step int) []rec {
+	var out []rec
 	for k := start; k >= 0 && k < len(recs) && recs[k].kind == "ctx" && len(out) < contextLines; k += step {
-		out = append(out, recs[k].raw)
+		out = append(out, recs[k])
 	}
 	if step < 0 {
 		for l, r := 0, len(out)-1; l < r; l, r = l+1, r-1 {
@@ -164,20 +164,23 @@ func indexDiff(diff string) []Block {
 					newLines++
 				}
 			}
+			var lines []DiffLine
+			for _, r := range append(append(neighborRecs(recs, i-1, -1), run...), neighborRecs(recs, j, 1)...) {
+				lines = append(lines, DiffLine{Kind: r.kind, Text: r.raw, OldNo: r.oldNo, NewNo: r.newNo})
+			}
 			text := strings.Join(texts, "\n")
 			blocks = append(blocks, Block{
-				BlockID:       fmt.Sprintf("b%03d", counter),
-				Path:          fd.path,
-				ChangeType:    fd.changeType,
-				OldStart:      oldStart,
-				OldLines:      oldLines,
-				NewStart:      newStart,
-				NewLines:      newLines,
-				Header:        header,
-				Text:          text,
-				Sha:           shaOf(text),
-				ContextBefore: neighbors(recs, i-1, -1),
-				ContextAfter:  neighbors(recs, j, 1),
+				BlockID:    fmt.Sprintf("b%03d", counter),
+				Path:       fd.path,
+				ChangeType: fd.changeType,
+				OldStart:   oldStart,
+				OldLines:   oldLines,
+				NewStart:   newStart,
+				NewLines:   newLines,
+				Header:     header,
+				Text:       text,
+				Sha:        shaOf(text),
+				Lines:      lines,
 			})
 			i = j
 		}
