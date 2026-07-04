@@ -13,3 +13,6 @@ java-sdk/
 # go build artifacts
 go/go
 /tmp/ncr-render
+
+# go binary
+/ncr

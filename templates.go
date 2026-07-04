@@ -93,6 +93,7 @@ document.getElementById('call').onclick=function(){document.querySelectorAll('de
     <div class="sumfull">{{.Summary}}</div>
     {{.Detail}}
     <div class="meta">{{.Meta}}</div>
+    {{.Calls}}
     {{.Diff}}
   </div>
 </details>{{end}}`))

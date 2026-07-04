@@ -1,6 +1,6 @@
 # ADR 001 — Distribute as a single-binary Go CLI
 
-Status: accepted (2026-07-04)
+Status: accepted 2026-07-04 — implemented (Go port complete; Python removed)
 
 ## Context
 

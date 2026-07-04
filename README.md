@@ -40,21 +40,25 @@ later (see `docs/design.md`).
 
 ## Usage
 
-With [uv](https://docs.astral.sh/uv/) (auto-manages the venv + deps):
+A single Go binary — no runtime, no deps to install. Needs the `gh` CLI (for PR ingest)
+and `ANTHROPIC_API_KEY` (for the plan step).
 
 ```sh
-# From a GitHub PR (uses your `gh` auth; needs ANTHROPIC_API_KEY for the plan step)
-uv run ncr owner/name 812
+go build -o ncr .        # or: go install github.com/justinabrahms/narrative-code-review@latest
+
+# From a GitHub PR (uses your `gh` auth)
+./ncr owner/name 812
 
 # Local, no GitHub / no API — render a diff with a supplied reading plan
-uv run ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
+./ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
 ```
 
-(Equivalent without uv: `pip install -e .` then `ncr …`, or `python -m ncr …`.)
+Flags: `-o out.html`, `--no-open`, `--refresh` (bust caches), `--no-spend` (never call the
+API — fail loudly on a plan cache miss), `--model <id>`.
 
-Pipeline: **ingest (`gh`) → index (deterministic) → plan (LLM) → reconcile
-(deterministic) → render → `out/review.html`** (opens in your browser). The core
-(index/reconcile/render) is stdlib-only; only the plan step needs `anthropic`.
+Pipeline: **ingest (`gh`) → index (deterministic) → plan (LLM) → normalize → reconcile
+(deterministic) → render → `out/review.html`** (opens in your browser). The plan is cached
+by a hash of the exact prompt, so iterating on presentation re-renders for free.
 
 ## Non-negotiable: nothing gets forgotten
 
@@ -64,16 +68,20 @@ only references those ids; a deterministic reconciler proves by set-equality tha
 block was placed, and renders code verbatim from the index. So a model can't silently drop,
 truncate, or alter a hunk. See `docs/completeness.md`.
 
-## Status
+## Layout
 
-Early sketch — design + prompts, no runnable code yet. MVP shape is decided
-(`docs/design.md`): single-shot LLM prompt, GitHub PR via the `gh` CLI, LLM-only analysis,
-with the completeness guarantee above wrapped around it.
+Single Go package (`package main`) at the repo root:
 
-Being worked out first:
+| file | role |
+|------|------|
+| `index.go` | deterministic diff → stable-ID'd change blocks (+ context) |
+| `reconcile.go` | coverage guarantee: every block placed, else auto-repaired |
+| `normalize.go` | coerce flexible model JSON into the canonical plan |
+| `plan.go` | build the prompt + call the Anthropic Messages API |
+| `ingest.go` | pull the PR via `gh` | 
+| `cache.go` | content-addressed cache (ingest + plan) |
+| `render.go`, `templates.go`, `md.go` | HTML (chroma highlighting + `html/template`) |
+| `prompts/` | LLM prompts, embedded via `go:embed` |
 
-- **The LLM prompts** — `prompts/`
-- **The project sketch** — `docs/design.md`, `docs/completeness.md`, `docs/ingest.md`
-
-Still-open decisions (platform, context budget, re-ask policy) are at the bottom of
-`docs/design.md`.
+Design notes live in `docs/` (`design.md`, `completeness.md`, `ingest.md`, `schema.md`) and
+the language decision in `docs/adr-001-go-cli.md`. Run the tests with `go test ./...`.

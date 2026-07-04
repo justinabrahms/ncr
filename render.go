@@ -167,6 +167,7 @@ type nodeView struct {
 	Summary     template.HTML
 	Detail      template.HTML
 	Meta        string
+	Calls       template.HTML
 	Diff        template.HTML
 }
 
@@ -178,14 +179,14 @@ type chapterView struct {
 }
 
 type pageView struct {
-	Title, PRTag       string
-	CovText, CovClass  string
-	Overview           template.HTML
-	CSS                template.CSS
-	Chapters, Orphans  []chapterView
+	Title, PRTag      string
+	CovText, CovClass string
+	Overview          template.HTML
+	CSS               template.CSS
+	Chapters, Orphans []chapterView
 }
 
-func nodeViewOf(u Unit, blockByID map[string]Block) nodeView {
+func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols map[string]string) nodeView {
 	var blocks []Block
 	for _, id := range u.Blocks {
 		if b, ok := blockByID[id]; ok {
@@ -209,8 +210,29 @@ func nodeViewOf(u Unit, blockByID map[string]Block) nodeView {
 		Summary: mdRender(u.Summary),
 		Detail:  detail,
 		Meta:    meta,
+		Calls:   callsHTML(u.ID, edges, unitSymbols),
 		Diff:    diffHTML(blocks, u.Language, u.File),
 	}
+}
+
+func callsHTML(unitID string, edges []Edge, unitSymbols map[string]string) template.HTML {
+	var parts []string
+	for _, e := range edges {
+		if e.From != unitID {
+			continue
+		}
+		if e.Resolved {
+			if sym, ok := unitSymbols[e.To]; ok {
+				parts = append(parts, fmt.Sprintf(`<a href="#%s">%s</a>`, e.To, template.HTMLEscapeString(sym)))
+			}
+		} else {
+			parts = append(parts, `<span class="ext">↳ into unchanged code</span>`)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return template.HTML(`<div class="calls">calls: ` + strings.Join(parts, ", ") + `</div>`)
 }
 
 func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
@@ -222,13 +244,21 @@ func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
 	for _, b := range index.Blocks {
 		blockByID[b.BlockID] = b
 	}
+	unitSymbols := map[string]string{}
+	for _, u := range plan.Units {
+		s := u.Symbol
+		if s == "" {
+			s = u.File
+		}
+		unitSymbols[u.ID] = s
+	}
 
 	var chapters []chapterView
 	for _, ch := range plan.Chapters {
 		var nodes []nodeView
 		for _, n := range ch.Nodes {
 			if u, ok := unitByID[n.Unit]; ok {
-				nodes = append(nodes, nodeViewOf(u, blockByID))
+				nodes = append(nodes, nodeViewOf(u, blockByID, plan.Edges, unitSymbols))
 			}
 		}
 		chapters = append(chapters, chapterView{
@@ -240,7 +270,7 @@ func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
 		var nodes []nodeView
 		for _, id := range grp.Units {
 			if u, ok := unitByID[id]; ok {
-				nodes = append(nodes, nodeViewOf(u, blockByID))
+				nodes = append(nodes, nodeViewOf(u, blockByID, plan.Edges, unitSymbols))
 			}
 		}
 		name := fmt.Sprintf("L%d", grp.Layer)
@@ -248,18 +278,22 @@ func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
 			name = li.name
 		}
 		orphans = append(orphans, chapterView{
-			Title:  "Orphans · " + name,
+			Title:   "Orphans · " + name,
 			Summary: template.HTML("Changed here but not called by anything else in this diff."),
-			Nodes:  nodes, Orphan: true})
+			Nodes:   nodes, Orphan: true})
 	}
 
 	prTag := ""
 	if plan.PRNumber != 0 {
 		prTag = fmt.Sprintf(" · #%d", plan.PRNumber)
 	}
-	covText := fmt.Sprintf("%d/%d blocks placed", plan.Coverage.Counts.Placed, plan.Coverage.Counts.Indexed)
+	cov := plan.Coverage
+	if cov == nil {
+		cov = &Coverage{OK: true}
+	}
+	covText := fmt.Sprintf("%d/%d blocks placed", cov.Counts.Placed, cov.Counts.Indexed)
 	covClass := "cov-bad"
-	if plan.Coverage.OK {
+	if cov.OK {
 		covClass, covText = "cov-ok", covText+" ✓"
 	} else {
 		covText += " — see ⚠ Unplaced"
