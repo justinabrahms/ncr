@@ -29,9 +29,13 @@ Follow these principles:
 
 {{include: _shared/layers.md}}
 
-2. **Chapters follow call paths.** A chapter starts at the outermost changed node of one
-   coherent story (usually an entrypoint) and descends through the changed nodes it calls,
-   ordered by call depth. One user-visible capability ≈ one chapter.
+2. **Chapters are themes.** A chapter is one coherent story in the change. When the change
+   adds behavior, that story is usually a **capability**: it starts at the outermost changed
+   node (an entrypoint) and descends through the nodes it calls, ordered by call depth — one
+   user-visible capability ≈ one chapter. When there is no call path — a refactor, an infra
+   or tooling change — make the chapter a **theme**: the shared concern its units advance
+   (e.g. "Line-level completeness accounting", "Prompt & docs for the new contract"). Prefer
+   a few substantial chapters over many thin ones, and **never make a chapter per file.**
 
 3. **Progressive disclosure.** Write each `summary` so the reader can decide whether to
    expand the node at all. The summary must stand alone without the hunk.
@@ -49,14 +53,17 @@ Follow these principles:
    it in a unit with `layer: 5, "uncertain": true` rather than omitting it. Never drop a
    block, a deletion, or a config change.
 
-6. **One unit per symbol; never "(continued)".** Blocks are already split at
-   function/declaration boundaries, so a single function's changes are one or a few blocks —
-   gather **all** the blocks belonging to one function or type into a single unit, labeled by
-   that symbol. Use the **full file contents** below to attribute a block to its symbol; the
-   hunk `@@` header names the *old* structure and is unreliable after a rewrite. **Never** emit
-   a `foo` and a `foo (continued)` pair, and never split one symbol across units. Err toward
-   fewer, larger units — don't manufacture a unit for every comment tweak or import. Every
-   block id appears in exactly one unit.
+6. **Group by concern, not by symbol.** A unit is one *idea the reader holds at once* — a
+   concern that may span several functions, types, or even files (e.g. "the line-level
+   coverage accounting", "wire the new flag through config and the CLI"). Gather every block
+   serving that concern into one unit, **across functions and files**, so the reader reviews a
+   few dozen lines of related code together rather than a function at a time. **Do not emit one
+   unit per function**, and never split one concern across units or leave a `foo` /
+   `foo (continued)` pair. Err strongly toward fewer, larger units: a good plan for a medium PR
+   is a handful of concern-units, not one per symbol — start a new unit only when the concern
+   genuinely changes. Use the **full file contents** below to understand what each block does;
+   the hunk `@@` header names the *old* structure and is unreliable after a rewrite. Every block
+   id appears in exactly one unit.
 
 ## User
 

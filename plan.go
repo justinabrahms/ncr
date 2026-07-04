@@ -22,7 +22,7 @@ const (
 	anthropicURL   = "https://api.anthropic.com/v1/messages"
 	anthropicVers  = "2023-06-01"
 	defaultMaxToks = 32000
-	schemaVersion  = "toolv3" // bump when the tool/request shape changes (salts the cache key)
+	schemaVersion  = "toolv4" // bump when the tool/request shape changes (salts the cache key)
 )
 
 var (
@@ -165,9 +165,9 @@ func planTool(index Index) map[string]any {
 			"blocks": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string", "enum": index.BlockIDs},
-				"description": "block ids from the index this unit covers. Blocks are already split at function/declaration boundaries, so group all the block ids that belong to one function or type into a single unit — every block id must appear in exactly one unit.",
+				"description": "block ids from the index this unit covers. Group blocks by concern: a unit may span several functions, types, or files if they advance one idea. Prefer fewer, larger concern-units over one-per-function. Every block id must appear in exactly one unit.",
 			},
-			"symbol":      map[string]any{"type": "string", "description": "the changed symbol (function/method/type), or the file for file-level changes"},
+			"symbol":      map[string]any{"type": "string", "description": "a short label for this unit's concern — a symbol name when it's one function/type, else a few-word description of the shared concern (may span files)"},
 			"layer":       map[string]any{"type": "integer", "enum": []int{0, 1, 2, 3, 4, 5, 6}},
 			"layerReason": map[string]any{"type": "string"},
 			"summary":     map[string]any{"type": "string", "description": "one short line — the point/intent of this change, NOT a restatement of the diff (the reader sees the diff). A few words if the code is self-evident."},
@@ -178,7 +178,7 @@ func planTool(index Index) map[string]any {
 		"type":     "object",
 		"required": []string{"title", "changeUnits"},
 		"properties": map[string]any{
-			"title":       map[string]any{"type": "string", "description": "a capability, e.g. 'POST /orders — place an order'"},
+			"title":       map[string]any{"type": "string", "description": "the chapter's theme — a capability like 'POST /orders — place an order', or a concern like 'Line-level completeness accounting'. Never a bare filename."},
 			"summary":     map[string]any{"type": "string"},
 			"changeUnits": map[string]any{"type": "array", "items": unit},
 		},
@@ -189,7 +189,7 @@ func planTool(index Index) map[string]any {
 		"properties": map[string]any{
 			"title":    map[string]any{"type": "string"},
 			"overview": map[string]any{"type": "string", "description": "2–4 sentences: what the PR does and the suggested reading path"},
-			"chapters": map[string]any{"type": "array", "items": chapter, "description": "outside-in reading order; one call-path story each"},
+			"chapters": map[string]any{"type": "array", "items": chapter, "description": "outside-in reading order; each a coherent story — a capability (call-path) or, for refactors/tooling, a shared theme. Never one chapter per file."},
 			"orphans": map[string]any{
 				"type":        "array",
 				"description": "changed units with no in-diff caller, grouped by layer",
