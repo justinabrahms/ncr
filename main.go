@@ -122,6 +122,7 @@ func run(argv []string) int {
 	logf("indexed %d change blocks", len(index.BlockIDs))
 
 	var raw rawPlan
+	var planModel string // model that produced the plan; "" when loaded from --plan
 	if *plan != "" {
 		b, err := os.ReadFile(*plan)
 		if err != nil {
@@ -135,6 +136,7 @@ func run(argv []string) int {
 		if mdl == "" {
 			mdl = defaultModel
 		}
+		planModel = mdl
 		system, user := buildPrompt(index, files, comments, meta)
 		// schemaVersion salts the key so a change in request shape (e.g. the
 		// forced-tool schema) doesn't collide with older cached responses.
@@ -209,7 +211,7 @@ func run(argv []string) int {
 		return 1
 	}
 
-	rs, err := newReviewServer(repo, pr, meta.HeadRefOid, index)
+	rs, err := newReviewServer(repo, pr, meta.HeadRefOid, index, rplan, planModel)
 	if err != nil {
 		return fail(err)
 	}

@@ -11,7 +11,7 @@ import (
 func newTestServer(t *testing.T) *reviewServer {
 	t.Helper()
 	t.Setenv("NCR_STATE_DIR", t.TempDir())
-	rs, err := newReviewServer("owner/repo", 7, "headsha", buildIndex(sampleDiff(t)))
+	rs, err := newReviewServer("owner/repo", 7, "headsha", buildIndex(sampleDiff(t)), ReadingPlan{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,5 +170,64 @@ func TestSubmitEmptyBlockedButApproveOK(t *testing.T) {
 	// APPROVE with no comments and no body → allowed
 	if rec := rs.do("POST", "/api/review/submit", `{"verdict":"APPROVE"}`); rec.Code != 200 {
 		t.Fatalf("bare approve: want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDebugDumpsPlanCoverageAndReview(t *testing.T) {
+	t.Setenv("NCR_STATE_DIR", t.TempDir())
+	idx := buildIndex(sampleDiff(t))
+	layer := 1
+	plan := ReadingPlan{
+		Title:    "My PR",
+		Overview: "does a thing",
+		Chapters: []Chapter{{ID: "ch1", Title: "cap"}},
+		Units:    []Unit{{ID: "u1", File: "a.go", Symbol: "F", Layer: &layer}},
+		Coverage: &Coverage{OK: false, Missing: []string{"b1"}},
+	}
+	rs, err := newReviewServer("owner/repo", 7, "headsha", idx, plan, "claude-test-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// default dump: plan + coverage + review, no index
+	rec := rs.do("GET", "/api/debug", "")
+	if rec.Code != 200 {
+		t.Fatalf("debug: %d %s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Version  string      `json:"version"`
+		Model    string      `json:"model"`
+		HeadSha  string      `json:"headSha"`
+		Plan     ReadingPlan `json:"plan"`
+		Coverage *Coverage   `json:"coverage"`
+		Index    *Index      `json:"index"`
+		Review   struct {
+			Pending []ReviewComment `json:"pending"`
+		} `json:"review"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Model != "claude-test-model" || out.HeadSha != "headsha" || out.Version == "" {
+		t.Fatalf("meta wrong: %+v", out)
+	}
+	if out.Plan.Title != "My PR" || len(out.Plan.Chapters) != 1 {
+		t.Fatalf("plan not dumped: %+v", out.Plan)
+	}
+	if out.Coverage == nil || out.Coverage.OK || len(out.Coverage.Missing) != 1 {
+		t.Fatalf("coverage not dumped: %+v", out.Coverage)
+	}
+	if out.Review.Pending == nil {
+		t.Fatalf("review.pending should be [] not null")
+	}
+	if out.Index != nil {
+		t.Fatalf("index should be omitted without ?verbose=1")
+	}
+
+	// verbose includes the block index
+	rec = rs.do("GET", "/api/debug?verbose=1", "")
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	if out.Index == nil || len(out.Index.BlockIDs) == 0 {
+		t.Fatalf("verbose should include a non-empty index")
 	}
 }
