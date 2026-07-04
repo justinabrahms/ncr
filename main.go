@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -24,6 +25,34 @@ var version = "dev"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
+}
+
+// versionString reports the release tag when built by goreleaser, else the git
+// revision (+ "-dirty" for uncommitted changes) that Go embeds for local builds.
+func versionString() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		rev, dirty := "", ""
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				rev = s.Value
+			case "vcs.modified":
+				if s.Value == "true" {
+					dirty = "-dirty"
+				}
+			}
+		}
+		if rev != "" {
+			if len(rev) > 12 {
+				rev = rev[:12]
+			}
+			return rev + dirty
+		}
+	}
+	return "dev"
 }
 
 func run(argv []string) int {
@@ -46,7 +75,7 @@ func run(argv []string) int {
 		return 2
 	}
 	if *showVersion {
-		fmt.Println("ncr", version)
+		fmt.Println("ncr", versionString())
 		return 0
 	}
 	if *refresh && *noSpend {
