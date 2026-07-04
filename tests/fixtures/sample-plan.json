@@ -28,9 +28,7 @@
       "blocks": ["b001"], "layer": 0,
       "layerReason": "public API route + request/response schema",
       "summary": "Declares POST /orders accepting an Order body, returning 201.",
-      "why": "Defines the contract the new endpoint implements.",
-      "reviewNotes": ["No error responses (400/409) documented for invalid orders."],
-      "risk": "low"
+      "detail": "The contract the rest of this change implements; read it first."
     },
     {
       "id": "u2", "file": "internal/order/handler.go", "language": "go",
@@ -39,9 +37,7 @@
       "layerReason": "HTTP handler receiving the request",
       "references": ["h.svc.Place"],
       "summary": "Decodes PlaceOrderRequest and calls the order service, returning the new id.",
-      "why": "Entry point for the order-placement feature.",
-      "reviewNotes": ["No validation of req before hitting the service — empty item lists reach the domain.", "Decode error and service error both surface raw; 500 leaks err.Error() to the client."],
-      "risk": "medium"
+      "detail": "Entry point for the order flow: decodes the JSON body, delegates to Service.Place, and writes back the new id."
     },
     {
       "id": "u3", "file": "internal/order/service.go", "language": "go",
@@ -50,9 +46,7 @@
       "layerReason": "orchestrates domain construction + persistence",
       "references": ["NewOrder", "s.repo.Insert"],
       "summary": "Builds a domain Order from the request items and inserts it via the repo.",
-      "why": "Coordinates the place-order use case.",
-      "reviewNotes": ["Return value of NewOrder isn't validated before Insert."],
-      "risk": "low"
+      "detail": "Called by the handler; constructs the domain Order and hands it to the repository to persist."
     },
     {
       "id": "u4", "file": "migrations/002_orders.sql", "language": "sql",
@@ -60,9 +54,7 @@
       "blocks": ["b004"], "layer": 4,
       "layerReason": "schema migration for the orders table",
       "summary": "Creates the orders table (id, total_cents).",
-      "why": "Backing store for the new Order.",
-      "reviewNotes": ["No created_at/status columns; total_cents has no non-negative check."],
-      "risk": "low"
+      "detail": "The backing store the repository writes to."
     }
   ],
   "edges": [

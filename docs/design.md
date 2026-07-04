@@ -5,11 +5,13 @@
 Input: a diff of ~300–3,000 lines (a GitHub PR, or a raw unified diff).
 
 Output: a **reordered, layered, annotated reading plan** for that diff — a tree of
-"chapters," each following a call path outside-in, with per-node summaries and
-"what to review carefully" notes. Rendered in a UI that supports progressive disclosure.
+"chapters," each following a call path outside-in, with per-node plain-language
+explanations. Rendered in a UI that supports progressive disclosure.
 
-We are explicitly *not* trying to auto-approve or auto-comment on the PR. We're trying to
-make the human's read faster and better-sequenced.
+The tool is an **explainer, not a reviewer**: it describes what the change does and how the
+pieces connect, in a good reading order. It does *not* critique the code, flag bugs, or
+score risk — the human forms their own judgment. We're just making the read faster and
+better-sequenced.
 
 ## The reading model (the thing that makes this different)
 

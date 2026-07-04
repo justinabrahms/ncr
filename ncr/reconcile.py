@@ -95,9 +95,7 @@ def _auto_repair(plan: dict, missing: list[str], by_id: dict) -> None:
             "layer": 5,
             "layerReason": "auto-repair: organizer did not place this block",
             "uncertain": True,
-            "summary": f"Block {bid} the organizer left unplaced — review directly.",
-            "reviewNotes": [],
-            "risk": "medium",
+            "summary": f"Block {bid} the organizer left unplaced — shown here directly.",
         })
         nodes.append({"unit": uid, "depth": 0})
 

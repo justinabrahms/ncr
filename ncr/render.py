@@ -30,7 +30,6 @@ LAYERS = {
     5: ("Cross-cutting", "#64748b"),
     6: ("Tests/Docs", "#94a3b8"),
 }
-RISK_COLOR = {"low": "#64748b", "medium": "#d97706", "high": "#dc2626"}
 
 
 def _esc(s: str) -> str:
@@ -89,13 +88,7 @@ def _diff_html(text: str, language: str = "", path: str = "") -> str:
 
 def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) -> str:
     code = "\n".join(blocks_by_id.get(b, {}).get("text", "") for b in unit.get("blocks", []))
-    risk = unit.get("risk", "low")
-    notes = unit.get("reviewNotes") or []
-    notes_html = ""
-    if notes:
-        items = "".join(f"<li>{_esc(n)}</li>" for n in notes)
-        notes_html = f'<div class="notes"><strong>Review carefully</strong><ul>{items}</ul></div>'
-    why = f'<div class="why">{_esc(unit["why"])}</div>' if unit.get("why") else ""
+    detail = f'<div class="detail">{_esc(unit["detail"])}</div>' if unit.get("detail") else ""
 
     # outgoing call links
     calls = []
@@ -114,14 +107,12 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
 <details id="{unit['id']}" class="node">
   <summary>
     {_layer_badge(unit.get('layer'))}
-    <span class="risk" style="color:{RISK_COLOR.get(risk, '#64748b')}">●</span>
     <code class="sym">{sym}</code>
     <span class="one">{_esc(unit.get('summary', ''))}</span>
   </summary>
   <div class="body">
     <div class="meta">{_esc(unit.get('file',''))} · {blocks_tag} · {_esc(unit.get('layerReason',''))}</div>
-    {why}
-    {notes_html}
+    {detail}
     {calls_html}
     {diff}
   </div>
@@ -220,14 +211,11 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .node summary::-webkit-details-marker{display:none}
 .node[open] summary{border-bottom:1px solid var(--line);background:#fbfcfe}
 .badge{color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
-.risk{font-size:12px}
 .sym{font-size:13px;background:var(--bg);padding:1px 6px;border-radius:4px}
 .one{color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .body{padding:12px 14px}
 .meta{font-size:12px;color:var(--muted);margin-bottom:8px}
-.why{font-style:italic;color:#475569;margin-bottom:8px}
-.notes{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;margin-bottom:10px}
-.notes ul{margin:4px 0 0;padding-left:18px}
+.detail{color:#475569;margin-bottom:10px}
 .calls{font-size:13px;color:var(--muted);margin-bottom:8px}
 .calls a{color:#2563eb;text-decoration:none}
 .ext{color:#94a3b8}

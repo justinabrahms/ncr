@@ -38,11 +38,9 @@ The inter-stage contract. `reading-plan.json` (the UI input) is the union of eve
   "layer": 1,
   "layerReason": "HTTP handler registered on the /orders route",
 
-  // added by Annotate:
+  // added by Annotate (explanatory only — no critique/risk):
   "summary": "Adds a POST /orders handler that decodes the payload and calls the service.",
-  "why": "New endpoint for the order-placement feature.",
-  "reviewNotes": ["No validation on quantity; negative values reach the domain."],
-  "risk": "medium"                   // low|medium|high
+  "detail": "Entry point for the order flow; hands the decoded request to Service.Place."  // optional
 }
 ```
 

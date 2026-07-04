@@ -33,8 +33,10 @@ author would explain the change to you:
    entrypoint. You expand into callees on demand. You choose your depth; the DB
    implementation is there when you want it, not before.
 
-The reordering + summaries + "what to review carefully" annotations are produced by an
-LLM pipeline (see `prompts/`). Static analysis can augment it later (see `docs/design.md`).
+The reordering + plain-language explanations of each piece are produced by an LLM pipeline
+(see `prompts/`). It's an **explainer, not a reviewer** — it tells you what the change does
+and how the pieces connect, and leaves the judgment to you. Static analysis can augment it
+later (see `docs/design.md`).
 
 ## Usage
 
