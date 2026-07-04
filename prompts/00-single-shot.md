@@ -39,11 +39,19 @@ Follow these principles:
    unchanged code) are expected and fine.
 
 5. **Completeness is mandatory and checked.** You are given `block-index.json`, the full,
-   authoritative list of change blocks. **Every `blockId` must appear in exactly one
-   unit's `blocks` array.** A deterministic reconciler verifies this after you; a missing
-   or duplicated id is a failure. If you cannot classify a block, still place it — put it
-   in a unit with `layer: 5, "uncertain": true` rather than omitting it. Never drop a
+   authoritative list of change blocks. **Every changed line of every block must be covered
+   by exactly one unit.** A deterministic reconciler verifies this at line granularity after
+   you; a gap or overlap is a failure. If you cannot classify a block, still place it — put
+   it in a unit with `layer: 5, "uncertain": true` rather than omitting it. Never drop a
    block, a deletion, or a config change.
+
+6. **You may chunk a block for a better narrative.** A block is a contiguous run of changed
+   lines; a big one can contain several functions. Reference the whole block by id (`"b012"`)
+   *or* split it across units by appending a 1-based line sub-range over that block's `text`
+   (`"b012:1-20"` in one unit, `"b012:21-45"` in another). Split only when it genuinely helps
+   the reading — and **never split a single function across units.** Keep each function whole;
+   cut only at declaration/statement boundaries. Together the segments for a block must still
+   cover its lines exactly once.
 
 ## User
 
@@ -65,12 +73,12 @@ Existing review comments (anchor each to the block/unit it discusses, if any):
 
 Emit a single JSON object matching `docs/schema.md` → `ReadingPlan`. Requirements:
 
-- `units[]`: one per changed symbol/logical block, each with `blocks[]` (the block ids it
-  covers) + `layer` + `layerReason` + `summary` (what it does) + optional `detail` (a
-  neutral sentence or two on how it fits the flow, only when non-obvious). No raw code, no
-  review notes, no risk scoring.
-- **Coverage:** the union of all `units[].blocks` must equal the full set of `blockId`s in
-  the index — every id exactly once.
+- `units[]`: one per changed symbol/logical block, each with `blocks[]` (block-id or
+  `id:from-to` sub-range segments it covers) + `layer` + `layerReason` + `summary` (what it
+  does) + optional `detail` (a neutral sentence or two on how it fits the flow, only when
+  non-obvious). No raw code, no review notes, no risk scoring.
+- **Coverage:** the segments across all `units[].blocks` must cover every changed line of
+  every block exactly once (whole blocks, or non-overlapping sub-ranges that tile a block).
 - `edges[]`: caller→callee among units; set `resolved:false` when the target isn't in the
   diff.
 - `chapters[]`: ordered by outermost layer; nodes within a chapter ordered by `depth`

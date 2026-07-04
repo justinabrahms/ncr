@@ -30,7 +30,8 @@ The inter-stage contract. `reading-plan.json` (the UI input) is the union of eve
   "symbol": "OrderHandler.Place",    // fully-qualified where possible; "" for file-level
   "kind": "method",                  // function|method|class|type|const|config|migration|test|other
   "changeType": "modified",          // added|modified|deleted|renamed
-  "blocks": ["b07", "b08"],          // block ids this unit covers — the completeness link
+  "blocks": ["b07", "b08:1-20"],     // segments this unit covers: a block id, or a 1-based
+                                     // line sub-range "id:from-to" (the completeness link)
   "startLine": 40, "endLine": 88,    // in the NEW file (post-diff); null for pure deletes
   "signature": "func (h *OrderHandler) Place(w, r) ",
   "references": ["OrderService.place", "decodeOrderRequest"], // names it calls/uses

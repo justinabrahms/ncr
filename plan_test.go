@@ -98,19 +98,15 @@ func TestParseModelResponseTextFallback(t *testing.T) {
 	}
 }
 
-func TestPlanToolCarriesBlockEnum(t *testing.T) {
-	idx := Index{BlockIDs: []string{"b001", "b002"}}
-	raw, err := json.Marshal(planTool(idx))
-	if err != nil {
-		t.Fatal(err)
+func TestPlanToolAllowsSegments(t *testing.T) {
+	raw, err := json.Marshal(planTool(Index{BlockIDs: []string{"b001", "b002"}}))
+	if err != nil || !json.Valid(raw) {
+		t.Fatalf("planTool did not marshal to valid JSON: %v", err)
 	}
-	if !json.Valid(raw) {
-		t.Fatal("planTool did not marshal to valid JSON")
-	}
-	// the per-PR block-id enum must be embedded in the schema
+	// the blocks field must document sub-range splitting and the never-split rule
 	s := string(raw)
-	if !strings.Contains(s, "b001") || !strings.Contains(s, "b002") {
-		t.Fatalf("block ids not in tool schema: %s", s)
+	if !strings.Contains(s, "b012:1-20") || !strings.Contains(s, "NEVER split a single function") {
+		t.Fatalf("blocks schema missing segment/split guidance: %s", s)
 	}
 }
 

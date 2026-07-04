@@ -8,9 +8,12 @@ The LLM is a reordering and narration engine. It is **not trusted** with complet
 
 ## The three guarantees
 
-1. **Every change block is placed.** A deterministic set-equality check proves the union
-   of blocks referenced by the reading plan equals the full set parsed from the diff.
-   Missing → surfaced, never dropped.
+1. **Every changed line is placed exactly once.** Checked at line granularity: a unit may
+   reference a whole block (`"b07"`) or a sub-range of it (`"b07:1-20"`) so the narrative can
+   split a big block, but the reconciler proves the segments tile every changed line of every
+   block with no gaps and no overlaps. A gap → surfaced (auto-repaired into "Unplaced"), an
+   overlap → flagged. ("Never split a function" is a prompt instruction; this line accounting
+   is what makes splitting safe regardless.)
 2. **Displayed code is verbatim.** The UI renders each hunk from the deterministic index,
    keyed by block id — never from LLM output. The model cannot alter, truncate, or
    invent a line of the diff, because it never emits diff lines.

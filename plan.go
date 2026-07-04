@@ -22,7 +22,7 @@ const (
 	anthropicURL   = "https://api.anthropic.com/v1/messages"
 	anthropicVers  = "2023-06-01"
 	defaultMaxToks = 32000
-	schemaVersion  = "toolv1" // bump when the tool/request shape changes (salts the cache key)
+	schemaVersion  = "toolv2" // bump when the tool/request shape changes (salts the cache key)
 )
 
 var (
@@ -163,9 +163,14 @@ func planTool(index Index) map[string]any {
 		"required": []string{"blocks", "summary"},
 		"properties": map[string]any{
 			"blocks": map[string]any{
-				"type":        "array",
-				"items":       map[string]any{"type": "string", "enum": index.BlockIDs},
-				"description": "block ids from the index this unit covers",
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+				"description": "the changed code this unit covers, as one or more segments. " +
+					"Each segment is a block id (e.g. \"b012\") for the whole block, OR a 1-based " +
+					"line sub-range within that block's `text` (e.g. \"b012:1-20\") to split a large " +
+					"block across units when it helps the narrative. NEVER split a single function " +
+					"across units — keep each function whole; split only at declaration/statement " +
+					"boundaries. Every changed line of every block must be covered by exactly one unit.",
 			},
 			"symbol":      map[string]any{"type": "string", "description": "the changed symbol (function/method/type), or the file for file-level changes"},
 			"layer":       map[string]any{"type": "integer", "enum": []int{0, 1, 2, 3, 4, 5, 6}},

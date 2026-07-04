@@ -21,8 +21,9 @@ func firstNonEmpty(vals ...string) string {
 
 func fillUnit(u *Unit, blocksByID map[string]Block) {
 	if u.File == "" {
-		for _, b := range u.Blocks {
-			if blk, ok := blocksByID[b]; ok {
+		for _, seg := range u.Blocks {
+			id, _, _, _ := parseSegment(seg)
+			if blk, ok := blocksByID[id]; ok {
 				u.File = blk.Path
 				break
 			}
