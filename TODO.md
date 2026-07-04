@@ -1,5 +1,19 @@
 # TODO
 
+## Port to a single-binary Go CLI (for distribution)
+
+Decided in [docs/adr-001-go-cli.md](adr-001-go-cli.md): distribute as a public single-binary
+CLI, written in Go (chroma for highlighting, GoReleaser for distribution). **Sequencing: do
+NOT port yet** — keep iterating on prompts/HTML-UX/schema in Python (the fast harness), then
+port once they stabilize. Port surface + rationale are in the ADR.
+
+- [ ] (optional, de-risk) thin Go skeleton: `reading-plan.json` → HTML, to prove chroma +
+      `html/template` parity with the Python renderer.
+- [ ] full port once prompts/UX freeze; carry `prompts/`, `docs/schema.md`, HTML template
+      (`go:embed`) verbatim; port the ~700 lines of tested logic + their tests.
+- [ ] `.goreleaser.yaml` + Homebrew tap at first release.
+
+
 ## Force schema via tool use (instead of free-form JSON + normalize.py)
 
 Give the model a single forced tool `submit_reading_plan` with a strict `input_schema`
