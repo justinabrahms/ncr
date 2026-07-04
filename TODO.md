@@ -33,8 +33,8 @@ highlighting, GoReleaser for distribution).
       module-root package is named after the last path segment, so no `cmd/ncr/` layout is
       needed. (Works for others once the repo is public.)
 
-Remaining (optional, not blocking):
-- [ ] Homebrew tap for `brew install ncr`.
+- [x] Homebrew tap — `brew install justinabrahms/tap/ncr` (formula auto-published to
+      justinabrahms/homebrew-tap on release).
 
 
 ## Force schema via tool use — DONE
