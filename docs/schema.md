@@ -27,11 +27,12 @@ The inter-stage contract. `reading-plan.json` (the UI input) is the union of eve
   "id": "u12",                       // stable id, referenced by edges
   "file": "internal/order/handler.go",
   "language": "go",
-  "symbol": "OrderHandler.Place",    // fully-qualified where possible; "" for file-level
+  "symbol": "OrderHandler.Place",    // a symbol when the unit is one function/type, else a
+                                     // few-word concern label; "" for file-level
   "kind": "method",                  // function|method|class|type|const|config|migration|test|other
   "changeType": "modified",          // added|modified|deleted|renamed
-  "blocks": ["b07", "b08"],          // block ids this unit covers (blocks are function-aligned;
-                                     // group a symbol's blocks together) — the completeness link
+  "blocks": ["b07", "b08"],          // block ids/segments this unit covers — grouped by concern,
+                                     // may span functions and files — the completeness link
   "startLine": 40, "endLine": 88,    // in the NEW file (post-diff); null for pure deletes
   "signature": "func (h *OrderHandler) Place(w, r) ",
   "references": ["OrderService.place", "decodeOrderRequest"], // names it calls/uses

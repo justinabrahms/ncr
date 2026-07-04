@@ -17,8 +17,9 @@ Produce:
 
 - **`overview`** (2–4 sentences): what the PR does and the suggested path through the
   chapters. First thing the reader sees.
-- **Per chapter**: a `title` (a capability, e.g. "POST /orders — place an order") and a
-  `summary` (1–2 sentences tracing the call path at a glance).
+- **Per chapter**: a `title` — a capability like "POST /orders — place an order", or a
+  theme like "Line-level completeness accounting"; never a bare filename — and a `summary`
+  (1–2 sentences tracing the call path or shared concern at a glance).
 - **Per node** (`ChangeUnit`):
   - `summary` — one sentence, stands alone without the hunk, so the reader can decide
     whether to expand it. What this code does.
