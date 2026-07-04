@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -117,9 +118,16 @@ func buildPrompt(index Index, files map[string]string, comments []Comment, meta 
 	}
 	slimJSON, _ := json.MarshalIndent(slim, "", " ")
 
+	// Sort file paths for a stable prompt — Go map iteration is randomized, and an
+	// unstable order would change the prompt hash (the cache key) every run.
+	paths := make([]string, 0, len(files))
+	for p := range files {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
 	var fb strings.Builder
-	for p, t := range files {
-		fmt.Fprintf(&fb, "=== %s ===\n%s\n\n", p, t)
+	for _, p := range paths {
+		fmt.Fprintf(&fb, "=== %s ===\n%s\n\n", p, files[p])
 	}
 	filesTxt := strings.TrimSpace(fb.String())
 	if filesTxt == "" {

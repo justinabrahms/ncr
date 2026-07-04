@@ -6,6 +6,22 @@ import (
 	"testing"
 )
 
+func TestBuildPromptIsDeterministic(t *testing.T) {
+	// The prompt hash is the plan cache key, so it must not depend on Go's
+	// randomized map iteration order over the changed files.
+	idx := buildIndex(sampleDiff(t))
+	files := map[string]string{
+		"a.go": "package a", "z.go": "package z", "m.go": "package m",
+		"b.go": "package b", "q.go": "package q",
+	}
+	_, first := buildPrompt(idx, files, nil, Meta{Title: "t"})
+	for i := 0; i < 20; i++ {
+		if _, u := buildPrompt(idx, files, nil, Meta{Title: "t"}); u != first {
+			t.Fatal("buildPrompt user string is not stable across runs")
+		}
+	}
+}
+
 func TestExtractJSONSkipsProseSnippet(t *testing.T) {
 	// The failure that motivated tool use: prose containing an incidental
 	// `{ code snippet }` (invalid JSON) before the real object.
