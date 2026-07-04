@@ -105,7 +105,9 @@ func run(argv []string) int {
 			mdl = defaultModel
 		}
 		system, user := buildPrompt(index, files, comments, meta)
-		pkey := "plan-" + cacheDigest(mdl, system, user)
+		// schemaVersion salts the key so a change in request shape (e.g. the
+		// forced-tool schema) doesn't collide with older cached responses.
+		pkey := "plan-" + cacheDigest(mdl, schemaVersion, system, user)
 		var planBytes []byte
 		if !*refresh {
 			if b, ok := cacheLoad(pkey); ok {
@@ -119,7 +121,7 @@ func run(argv []string) int {
 				return 2
 			}
 			logf("asking %s to organize the reading path (spends API credits) …", mdl)
-			b, err := runModel(system, user, mdl, defaultMaxToks)
+			b, err := runModel(system, user, mdl, defaultMaxToks, planTool(index))
 			if err != nil {
 				return fail(err)
 			}

@@ -98,7 +98,10 @@ func normalizePlan(raw rawPlan, index Index) ReadingPlan {
 	var orphans []Orphan
 	for _, ro := range raw.Orphans {
 		var ids []string
-		for _, item := range ro.Units {
+		for _, cu := range ro.ChangeUnits { // tool-schema shape: inline unit objects
+			ids = append(ids, ensure(cu, fmt.Sprintf("u-orphan-%d", len(units))))
+		}
+		for _, item := range ro.Units { // legacy: string ids or inline objects
 			var s string
 			if json.Unmarshal(item, &s) == nil {
 				ids = append(ids, s)

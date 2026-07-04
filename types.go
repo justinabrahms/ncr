@@ -116,8 +116,9 @@ type rawChapter struct {
 }
 
 type rawOrphan struct {
-	Layer int               `json:"layer"`
-	Units []json.RawMessage `json:"units"` // string ids or inline unit objects
+	Layer       int               `json:"layer"`
+	Units       []json.RawMessage `json:"units"` // string ids or inline unit objects
+	ChangeUnits []rawUnit         `json:"changeUnits"`
 }
 
 type rawUnit struct {

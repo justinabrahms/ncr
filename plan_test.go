@@ -1,0 +1,119 @@
+package main
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func TestExtractJSONSkipsProseSnippet(t *testing.T) {
+	// The failure that motivated tool use: prose containing an incidental
+	// `{ code snippet }` (invalid JSON) before the real object.
+	in := "Looking at the diff I see `{ anyEnabled = true }` in the handler.\n" +
+		"Here is the plan:\n{\"overview\":\"x\",\"chapters\":[]}"
+	b, err := extractJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("extracted invalid JSON: %s", b)
+	}
+	if _, ok := m["chapters"]; !ok {
+		t.Fatalf("extracted wrong object: %s", b)
+	}
+}
+
+func TestExtractJSONPrefersFencedBlock(t *testing.T) {
+	in := "prose {not: json}\n```json\n{\"a\": {\"b\": 1}}\n```\ntrailing {x}"
+	b, err := extractJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"a": {"b": 1}}` {
+		t.Fatalf("got %s", b)
+	}
+}
+
+func TestExtractJSONBraceInString(t *testing.T) {
+	b, err := extractJSON(`{"s": "has } brace"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]string
+	if json.Unmarshal(b, &m); m["s"] != "has } brace" {
+		t.Fatalf("got %s", b)
+	}
+}
+
+func TestParseModelResponseToolUse(t *testing.T) {
+	body := []byte(`{"stop_reason":"tool_use","content":[
+		{"type":"text","text":"here you go"},
+		{"type":"tool_use","name":"submit_reading_plan","input":{"overview":"o","chapters":[]}}
+	]}`)
+	b, err := parseModelResponse(body, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil || m["overview"] != "o" {
+		t.Fatalf("tool input not returned cleanly: %s (%v)", b, err)
+	}
+}
+
+func TestParseModelResponseMaxTokens(t *testing.T) {
+	body := []byte(`{"stop_reason":"max_tokens","content":[{"type":"tool_use","input":{"chapters":[]}}]}`)
+	if _, err := parseModelResponse(body, 100); err == nil {
+		t.Fatal("expected truncation error on max_tokens")
+	}
+}
+
+func TestParseModelResponseTextFallback(t *testing.T) {
+	body := []byte(`{"stop_reason":"end_turn","content":[{"type":"text","text":"plan:\n{\"chapters\":[]}"}]}`)
+	b, err := parseModelResponse(body, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"chapters":[]}` {
+		t.Fatalf("got %s", b)
+	}
+}
+
+func TestPlanToolCarriesBlockEnum(t *testing.T) {
+	idx := Index{BlockIDs: []string{"b001", "b002"}}
+	raw, err := json.Marshal(planTool(idx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !json.Valid(raw) {
+		t.Fatal("planTool did not marshal to valid JSON")
+	}
+	// the per-PR block-id enum must be embedded in the schema
+	s := string(raw)
+	if !strings.Contains(s, "b001") || !strings.Contains(s, "b002") {
+		t.Fatalf("block ids not in tool schema: %s", s)
+	}
+}
+
+func TestToolShapedPlanNormalizesAndReconcilesFully(t *testing.T) {
+	idx := buildIndex(sampleDiff(t))
+	toolInput := []byte(`{
+		"overview":"o",
+		"chapters":[
+			{"title":"Contract","changeUnits":[{"blocks":["b001"],"symbol":"api","layer":0,"summary":"s"}]},
+			{"title":"Endpoint","changeUnits":[
+				{"blocks":["b002"],"symbol":"Place","layer":1,"summary":"s"},
+				{"blocks":["b003"],"symbol":"Service","layer":2,"summary":"s"}]}
+		],
+		"orphans":[{"layer":4,"changeUnits":[{"blocks":["b004"],"symbol":"","layer":4,"summary":"s"}]}]
+	}`)
+	var raw rawPlan
+	if err := json.Unmarshal(toolInput, &raw); err != nil {
+		t.Fatal(err)
+	}
+	plan := normalizePlan(raw, idx)
+	reconcile(&plan, idx, nil)
+	if !plan.Coverage.OK || plan.Coverage.Counts.Placed != 4 {
+		t.Fatalf("tool-shaped plan not fully placed: %+v", plan.Coverage)
+	}
+}

@@ -20,7 +20,8 @@ const (
 	defaultModel   = "claude-sonnet-4-6"
 	anthropicURL   = "https://api.anthropic.com/v1/messages"
 	anthropicVers  = "2023-06-01"
-	defaultMaxToks = 16000
+	defaultMaxToks = 32000
+	schemaVersion  = "toolv1" // bump when the tool/request shape changes (salts the cache key)
 )
 
 var (
@@ -28,6 +29,7 @@ var (
 	placeholderRe = regexp.MustCompile(`\{\{([^}]+)\}\}`)
 	headingRe     = regexp.MustCompile(`(?m)^##\s+(\w+)\s*$`)
 	fenceRe       = regexp.MustCompile("(?s)```[a-zA-Z]*\\n(.*?)```")
+	jsonFenceRe   = regexp.MustCompile("(?s)```(?:json)?\\s*\\n(.*?)```")
 )
 
 func readPrompt(name string) string {
@@ -143,12 +145,72 @@ func itoaOrEmpty(n int) string {
 	return fmt.Sprintf("%d", n)
 }
 
-func runModel(system, user, model string, maxTokens int) ([]byte, error) {
+// planTool builds the forced tool the model must call. The block-id field is an
+// enum of this PR's actual ids, so the model can't reference a block that doesn't
+// exist; layer is constrained to 0–6. Forcing the tool means the response is
+// structured JSON (the tool input) rather than free-form prose we have to scrape.
+func planTool(index Index) map[string]any {
+	unit := map[string]any{
+		"type":     "object",
+		"required": []string{"blocks", "summary"},
+		"properties": map[string]any{
+			"blocks": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string", "enum": index.BlockIDs},
+				"description": "block ids from the index this unit covers",
+			},
+			"symbol":      map[string]any{"type": "string", "description": "the changed symbol (function/method/type), or the file for file-level changes"},
+			"layer":       map[string]any{"type": "integer", "enum": []int{0, 1, 2, 3, 4, 5, 6}},
+			"layerReason": map[string]any{"type": "string"},
+			"summary":     map[string]any{"type": "string", "description": "one sentence: what this code does"},
+			"detail":      map[string]any{"type": "string", "description": "optional: how it fits the call-path flow"},
+		},
+	}
+	chapter := map[string]any{
+		"type":     "object",
+		"required": []string{"title", "changeUnits"},
+		"properties": map[string]any{
+			"title":       map[string]any{"type": "string", "description": "a capability, e.g. 'POST /orders — place an order'"},
+			"summary":     map[string]any{"type": "string"},
+			"changeUnits": map[string]any{"type": "array", "items": unit},
+		},
+	}
+	schema := map[string]any{
+		"type":     "object",
+		"required": []string{"overview", "chapters"},
+		"properties": map[string]any{
+			"title":    map[string]any{"type": "string"},
+			"overview": map[string]any{"type": "string", "description": "2–4 sentences: what the PR does and the suggested reading path"},
+			"chapters": map[string]any{"type": "array", "items": chapter, "description": "outside-in reading order; one call-path story each"},
+			"orphans": map[string]any{
+				"type":        "array",
+				"description": "changed units with no in-diff caller, grouped by layer",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"layer":       map[string]any{"type": "integer"},
+						"changeUnits": map[string]any{"type": "array", "items": unit},
+					},
+				},
+			},
+		},
+	}
+	return map[string]any{
+		"name":         "submit_reading_plan",
+		"description":  "Submit the outside-in reading plan. Every block id in the index must appear in exactly one unit's blocks.",
+		"input_schema": schema,
+	}
+}
+
+// runModel calls the Messages API forcing planTool, and returns the tool input
+// (structured JSON). Falls back to text extraction only if no tool_use block is
+// present (shouldn't happen with tool_choice, but be defensive).
+func runModel(system, user, model string, maxTokens int, tool map[string]any) ([]byte, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
 		return nil, fmt.Errorf("ANTHROPIC_API_KEY is not set")
 	}
-	reqBody, _ := json.Marshal(map[string]any{
+	reqMap := map[string]any{
 		"model":      model,
 		"max_tokens": maxTokens,
 		"system": []map[string]any{{
@@ -156,7 +218,13 @@ func runModel(system, user, model string, maxTokens int) ([]byte, error) {
 			"cache_control": map[string]string{"type": "ephemeral"},
 		}},
 		"messages": []map[string]any{{"role": "user", "content": user}},
-	})
+	}
+	if tool != nil {
+		reqMap["tools"] = []any{tool}
+		reqMap["tool_choice"] = map[string]any{"type": "tool", "name": tool["name"]}
+	}
+	reqBody, _ := json.Marshal(reqMap)
+
 	req, err := http.NewRequest("POST", anthropicURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
@@ -174,14 +242,30 @@ func runModel(system, user, model string, maxTokens int) ([]byte, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("anthropic API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	return parseModelResponse(body, maxTokens)
+}
+
+// parseModelResponse pulls the plan JSON out of a Messages API response: the
+// forced tool_use input when present, else text (via extractJSON).
+func parseModelResponse(body []byte, maxTokens int) ([]byte, error) {
 	var parsed struct {
 		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
+			Type  string          `json:"type"`
+			Text  string          `json:"text"`
+			Input json.RawMessage `json:"input"`
 		} `json:"content"`
+		StopReason string `json:"stop_reason"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, err
+	}
+	if parsed.StopReason == "max_tokens" {
+		return nil, fmt.Errorf("model response hit max_tokens (%d) — the plan was truncated; raise the token budget", maxTokens)
+	}
+	for _, c := range parsed.Content {
+		if c.Type == "tool_use" && len(c.Input) > 0 {
+			return c.Input, nil // already clean structured JSON
+		}
 	}
 	var sb strings.Builder
 	for _, c := range parsed.Content {
@@ -189,22 +273,40 @@ func runModel(system, user, model string, maxTokens int) ([]byte, error) {
 			sb.WriteString(c.Text)
 		}
 	}
+	if sb.Len() == 0 {
+		return nil, fmt.Errorf("model returned no tool_use and no text")
+	}
 	return extractJSON(sb.String())
 }
 
-// extractJSON pulls the first balanced {...} object out of a model response.
+// extractJSON is a defensive fallback for text responses: it returns the largest
+// balanced {...} that is valid JSON (preferring a fenced ```json block), so prose
+// or an incidental `{ code snippet }` before the real object can't fool it.
 func extractJSON(text string) ([]byte, error) {
-	text = strings.TrimSpace(text)
-	if strings.HasPrefix(text, "```") {
-		text = strings.Trim(text, "`\n ")
-		if i := strings.IndexByte(text, '\n'); i >= 0 {
-			text = text[i+1:]
+	if m := jsonFenceRe.FindStringSubmatch(text); m != nil {
+		if c := strings.TrimSpace(m[1]); json.Valid([]byte(c)) {
+			return []byte(c), nil
 		}
 	}
-	start := strings.IndexByte(text, '{')
-	if start < 0 {
-		return nil, fmt.Errorf("no JSON object in model response")
+	var best []byte
+	for i := 0; i < len(text); i++ {
+		if text[i] != '{' {
+			continue
+		}
+		if end := matchBrace(text, i); end > i {
+			if c := text[i : end+1]; len(c) > len(best) && json.Valid([]byte(c)) {
+				best = []byte(c)
+			}
+		}
 	}
+	if best == nil {
+		return nil, fmt.Errorf("no valid JSON object in model response")
+	}
+	return best, nil
+}
+
+// matchBrace returns the index of the '}' closing the '{' at start (string-aware).
+func matchBrace(text string, start int) int {
 	depth, inStr, esc := 0, false, false
 	for i := start; i < len(text); i++ {
 		c := text[i]
@@ -225,9 +327,9 @@ func extractJSON(text string) ([]byte, error) {
 		case c == '}':
 			depth--
 			if depth == 0 {
-				return []byte(text[start : i+1]), nil
+				return i
 			}
 		}
 	}
-	return nil, fmt.Errorf("unterminated JSON object in model response")
+	return -1
 }

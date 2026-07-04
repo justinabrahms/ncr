@@ -13,24 +13,22 @@ highlighting, GoReleaser for distribution).
       to produce `ncr` directly (currently `go build -o ncr .`).
 
 
-## Force schema via tool use (instead of free-form JSON + normalize.go)
+## Force schema via tool use — DONE
 
-Give the model a single forced tool `submit_reading_plan` with a strict `input_schema`
-(`tool_choice: {type: "tool", name: ...}`) so the API validates arguments and retries on
-mismatch — killing the structural drift class we currently patch up in `normalize.go`
-(nested `changeUnits`, `label` vs `symbol`, `summary` vs `overview`, missing fields).
+The model now calls a forced `submit_reading_plan` tool (`tool_choice: {type:tool}`) whose
+`input_schema` carries a per-PR block-id `enum` and a `layer` `enum: [0..6]`. The response
+is structured JSON (the tool input), so there's no prose to scrape — this fixed the
+`invalid character 'a'` failure where an incidental `{ code snippet }` in prose fooled the
+old first-brace extractor. See `planTool`/`parseModelResponse` in `plan.go`.
 
-- Build the schema **per-PR**: set the block-id field to an `enum` of the actual block ids
-  (`items: {enum: ["b001", ... ]}`) and `layer` to `enum: [0..6]`. Then hallucinated block
-  ids / bad layers become structurally impossible.
-- Parse `tool_use.input` directly; drop the `extractJSON` brace-scanner.
-- **Keep the deterministic reconciler.** JSON Schema is per-field and cannot express "every
-  block appears exactly once across all units" (a global constraint), so coverage still
-  needs the reconciler. Tools reduce drift; they don't replace the completeness backstop.
-- `normalize.go` shrinks to a thin fallback (keep for one release, then reassess).
-- Cost: changes the prompt → invalidates the plan cache → one paid run (~$0.35 Sonnet) to
-  validate. Write + unit-test the schema builder and tool-input parsing offline first.
+Kept as defense in depth:
+- `extractJSON` remains as a fallback for text responses, but now returns the *largest valid*
+  balanced object (preferring a fenced block), not the first brace group.
+- `normalize.go` still coerces the model's nested shape into the canonical plan.
+- The **reconciler stays** — JSON Schema can't express "every block exactly once across all
+  units" (a global constraint), so coverage is still enforced deterministically.
+- The raw model response is cached (not the post-extraction result), so a future parser fix
+  can never be defeated by a poisoned cache.
 
 Deferred heavier option: incremental tools (`place_block` in a loop, surfacing "N blocks
-remaining") to pressure coverage *during* generation. Multi-turn, more tokens/latency —
-only if single-tool drift persists.
+remaining") to pressure coverage *during* generation. Only if single-tool drift persists.
