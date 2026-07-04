@@ -33,17 +33,21 @@ Whenever the plan step calls the API, report the estimated spend for that PR —
 - Show it in the CLI log at minimum; consider surfacing it in the served page header too.
 - Consider a session/running total if a run makes multiple calls (not today, but leave room).
 
-## Single-binary Go CLI (for distribution)
+## Single-binary Go CLI (for distribution) — DONE
 
 Per [docs/adr-001-go-cli.md](adr-001-go-cli.md): public single-binary CLI in Go (chroma for
 highlighting, GoReleaser for distribution).
 
 - [x] render-parity skeleton (chroma + `html/template`).
-- [x] **full port complete** — the tool is now Go (`package main` at repo root); the Python
-      implementation is removed. Same CLI, same completeness guarantee, `go test ./...` green.
-- [ ] `.goreleaser.yaml` + Homebrew tap at first release.
-- [ ] `go install`-friendly binary name (`cmd/ncr/` layout) if we want `go install …@latest`
-      to produce `ncr` directly (currently `go build -o ncr .`).
+- [x] full port complete — the tool is Go (`package main` at repo root); Python removed.
+- [x] GoReleaser + release workflow; **v0.1.0 published** with cross-compiled binaries
+      (linux/darwin/windows × amd64/arm64) + checksums.
+- [x] `go install github.com/justinabrahms/ncr@latest` yields an `ncr` binary — the
+      module-root package is named after the last path segment, so no `cmd/ncr/` layout is
+      needed. (Works for others once the repo is public.)
+
+Remaining (optional, not blocking):
+- [ ] Homebrew tap for `brew install ncr`.
 
 
 ## Force schema via tool use — DONE
