@@ -175,8 +175,8 @@ func planTool(index Index) map[string]any {
 			"symbol":      map[string]any{"type": "string", "description": "the changed symbol (function/method/type), or the file for file-level changes"},
 			"layer":       map[string]any{"type": "integer", "enum": []int{0, 1, 2, 3, 4, 5, 6}},
 			"layerReason": map[string]any{"type": "string"},
-			"summary":     map[string]any{"type": "string", "description": "one sentence: what this code does"},
-			"detail":      map[string]any{"type": "string", "description": "optional: how it fits the call-path flow"},
+			"summary":     map[string]any{"type": "string", "description": "one short line — the point/intent of this change, NOT a restatement of the diff (the reader sees the diff). A few words if the code is self-evident."},
+			"detail":      map[string]any{"type": "string", "description": "optional; include ONLY when it adds something the diff doesn't show — a reason, a non-obvious consequence. Omit for self-evident changes (most of the time)."},
 		},
 	}
 	chapter := map[string]any{
