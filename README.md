@@ -36,6 +36,20 @@ author would explain the change to you:
 The reordering + summaries + "what to review carefully" annotations are produced by an
 LLM pipeline (see `prompts/`). Static analysis can augment it later (see `docs/design.md`).
 
+## Usage
+
+```sh
+# From a GitHub PR (uses your `gh` auth; needs ANTHROPIC_API_KEY for the plan step)
+python -m ncr 812 --repo owner/name
+
+# Local, no GitHub / no API — render a diff with a supplied reading plan
+python -m ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
+```
+
+Pipeline: **ingest (`gh`) → index (deterministic) → plan (LLM) → reconcile
+(deterministic) → render → `out/review.html`** (opens in your browser). The core
+(index/reconcile/render) is stdlib-only; only the plan step needs `anthropic`.
+
 ## Non-negotiable: nothing gets forgotten
 
 The reordering is LLM-driven, but the LLM is **not trusted with completeness or with the

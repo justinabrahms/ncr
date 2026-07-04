@@ -1,0 +1,2 @@
+# Runtime deps. Core pipeline (index/reconcile/render) is stdlib-only.
+anthropic>=0.40  # only needed for the LLM plan step (make_plan)
