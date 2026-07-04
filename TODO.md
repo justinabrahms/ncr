@@ -8,14 +8,17 @@ guarantee). So a large contiguous addition — e.g. a whole new `reviewServer` �
 shown whole under one unit. The model **cannot** split it to build a finer narrative.
 
 To allow splitting:
-- **(a) Finer indexing** — split a block at symbol boundaries (blank lines as a cheap
-  heuristic now; tree-sitter for real, per the v2 roadmap in `docs/design.md`). More, smaller
-  blocks the model can distribute across units. Changes block ids → invalidates the plan cache.
+- **(a) Finer indexing** — split a block at **function/symbol boundaries**, not arbitrary
+  blank lines (blank lines fall *inside* functions and would cut mid-body). That requires
+  language-aware parsing — tree-sitter to find the enclosing declaration and cut a big block
+  into one sub-block per function — which is the v2 static-analysis roadmap in
+  `docs/design.md`. More, smaller blocks the model can distribute across units. Changes block
+  ids → invalidates the plan cache.
 - **(b) Sub-block anchors** — let a unit reference a line range within a block instead of the
   whole block. More flexible but complicates the set-equality completeness check (would need
   to prove line-level coverage, not block-level).
 
-Leaning (a) with a blank-line heuristic as a quick win; keep the block = completeness unit.
+Leaning (a): split on function boundaries via tree-sitter; keep the block = completeness unit.
 
 ## Print Claude cost per reviewed PR
 
