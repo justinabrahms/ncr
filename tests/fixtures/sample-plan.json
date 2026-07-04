@@ -1,0 +1,72 @@
+{
+  "prNumber": 812,
+  "title": "Order placement endpoint",
+  "overview": "Adds a POST /orders endpoint. Read the API contract first, then the handler that decodes the payload, the service that builds and stores the order, and finally the new orders table. Suggested path: Contract → POST /orders → Storage.",
+  "chapters": [
+    {
+      "id": "c1",
+      "title": "Contract — POST /orders",
+      "summary": "New endpoint added to the OpenAPI spec: accepts an Order JSON body, returns 201.",
+      "rootUnit": "u1",
+      "layerSpan": [0, 0],
+      "nodes": [ { "unit": "u1", "depth": 0 } ]
+    },
+    {
+      "id": "c2",
+      "title": "POST /orders — place an order",
+      "summary": "Handler decodes the payload and delegates to the service, which builds a domain Order and inserts it.",
+      "rootUnit": "u2",
+      "layerSpan": [1, 2],
+      "nodes": [ { "unit": "u2", "depth": 0 }, { "unit": "u3", "depth": 1 } ]
+    }
+  ],
+  "orphans": [ { "layer": 4, "units": ["u4"] } ],
+  "units": [
+    {
+      "id": "u1", "file": "api/openapi.yaml", "language": "yaml",
+      "symbol": "paths./orders.post", "kind": "config", "changeType": "modified",
+      "blocks": ["b001"], "layer": 0,
+      "layerReason": "public API route + request/response schema",
+      "summary": "Declares POST /orders accepting an Order body, returning 201.",
+      "why": "Defines the contract the new endpoint implements.",
+      "reviewNotes": ["No error responses (400/409) documented for invalid orders."],
+      "risk": "low"
+    },
+    {
+      "id": "u2", "file": "internal/order/handler.go", "language": "go",
+      "symbol": "OrderHandler.Place", "kind": "method", "changeType": "modified",
+      "blocks": ["b002"], "layer": 1,
+      "layerReason": "HTTP handler receiving the request",
+      "references": ["h.svc.Place"],
+      "summary": "Decodes PlaceOrderRequest and calls the order service, returning the new id.",
+      "why": "Entry point for the order-placement feature.",
+      "reviewNotes": ["No validation of req before hitting the service — empty item lists reach the domain.", "Decode error and service error both surface raw; 500 leaks err.Error() to the client."],
+      "risk": "medium"
+    },
+    {
+      "id": "u3", "file": "internal/order/service.go", "language": "go",
+      "symbol": "Service.Place", "kind": "method", "changeType": "added",
+      "blocks": ["b003"], "layer": 2,
+      "layerReason": "orchestrates domain construction + persistence",
+      "references": ["NewOrder", "s.repo.Insert"],
+      "summary": "Builds a domain Order from the request items and inserts it via the repo.",
+      "why": "Coordinates the place-order use case.",
+      "reviewNotes": ["Return value of NewOrder isn't validated before Insert."],
+      "risk": "low"
+    },
+    {
+      "id": "u4", "file": "migrations/002_orders.sql", "language": "sql",
+      "symbol": "", "kind": "migration", "changeType": "added",
+      "blocks": ["b004"], "layer": 4,
+      "layerReason": "schema migration for the orders table",
+      "summary": "Creates the orders table (id, total_cents).",
+      "why": "Backing store for the new Order.",
+      "reviewNotes": ["No created_at/status columns; total_cents has no non-negative check."],
+      "risk": "low"
+    }
+  ],
+  "edges": [
+    { "from": "u2", "to": "u3", "kind": "calls", "resolved": true },
+    { "from": "u3", "to": null, "kind": "calls", "resolved": false }
+  ]
+}
