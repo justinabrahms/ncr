@@ -32,7 +32,11 @@ def main(argv=None) -> int:
     ap.add_argument("--model", help="Anthropic model id")
     ap.add_argument("-o", "--out", default="out/review.html", help="output HTML path")
     ap.add_argument("--no-open", action="store_true", help="don't open the browser")
+    ap.add_argument("--refresh", action="store_true",
+                    help="bypass caches: re-fetch from GitHub and re-call the model")
     args = ap.parse_args(argv)
+
+    from ncr import cache
 
     if args.diff:
         diff = Path(args.diff).read_text()
@@ -40,9 +44,15 @@ def main(argv=None) -> int:
     else:
         if not args.repo or args.pr is None:
             ap.error("give a repo and PR, e.g. `ncr owner/name 812` (or use --diff)")
-        from ncr.ingest import get_pr_context
-        print(f"› fetching {args.repo}#{args.pr} via gh …", file=sys.stderr)
-        ctx = get_pr_context(args.pr, repo=args.repo)
+        ikey = f"ingest-{args.repo}#{args.pr}"
+        ctx = None if args.refresh else cache.load(ikey)
+        if ctx is None:
+            from ncr.ingest import get_pr_context
+            print(f"› fetching {args.repo}#{args.pr} via gh …", file=sys.stderr)
+            ctx = get_pr_context(args.pr, repo=args.repo)
+            cache.save(ikey, ctx)
+        else:
+            print(f"› using cached ingest for {args.repo}#{args.pr}", file=sys.stderr)
         diff, meta, files, comments = ctx["diff"], ctx["meta"], ctx["files"], ctx["comments"]
 
     index = build_index(diff)
@@ -51,10 +61,18 @@ def main(argv=None) -> int:
     if args.plan:
         plan = json.loads(Path(args.plan).read_text())
     else:
-        from ncr.plan import make_plan
-        print("› asking the model to organize the reading path …", file=sys.stderr)
-        kwargs = {"model": args.model} if args.model else {}
-        plan = make_plan(index, files, comments, meta, **kwargs)
+        from ncr.plan import build_prompt, run_model, DEFAULT_MODEL
+        model = args.model or DEFAULT_MODEL
+        system, user = build_prompt(index, files, comments, meta)
+        pkey = f"plan-{cache.digest(model, system, user)}"
+        plan = None if args.refresh else cache.load(pkey)
+        if plan is None:
+            print(f"› asking {model} to organize the reading path (spends API credits) …",
+                  file=sys.stderr)
+            plan = run_model(system, user, model=model)
+            cache.save(pkey, plan)
+        else:
+            print("› using cached plan — no API call", file=sys.stderr)
 
     comment_blocks = []
     if comments:
@@ -70,6 +88,7 @@ def main(argv=None) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(build_html(plan, index))
+    (out.parent / "reading-plan.json").write_text(json.dumps(plan, indent=2))
     print(f"› wrote {out}", file=sys.stderr)
     if not args.no_open:
         webbrowser.open(out.resolve().as_uri())

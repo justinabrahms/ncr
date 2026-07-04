@@ -87,14 +87,11 @@ def extract_json(text: str) -> dict:
     raise ValueError("unterminated JSON object in model response")
 
 
-def make_plan(block_index: dict, files: dict, comments: list, meta: dict,
-              model: str = DEFAULT_MODEL, max_tokens: int = 16000) -> dict:
-    """Call the model and return the parsed reading plan (pre-reconcile)."""
-    try:
-        import anthropic
-    except ImportError as e:
-        raise RuntimeError("pip install anthropic (and set ANTHROPIC_API_KEY)") from e
+def build_prompt(block_index: dict, files: dict, comments: list, meta: dict) -> tuple[str, str]:
+    """Return (system, user) — the exact strings sent to the model.
 
+    Deterministic in its inputs, so its hash is a sound cache key for the plan.
+    """
     system, user_tmpl = load_prompt()
     files_txt = "\n\n".join(f"=== {p} ===\n{t}" for p, t in (files or {}).items())
     user = render_user(
@@ -106,6 +103,16 @@ def make_plan(block_index: dict, files: dict, comments: list, meta: dict,
         files=files_txt or "(not provided)",
         comments=json.dumps(comments or [], indent=0),
     )
+    return system, user
+
+
+def run_model(system: str, user: str, model: str = DEFAULT_MODEL,
+              max_tokens: int = 16000) -> dict:
+    """Call the model with a prepared prompt and return the parsed reading plan."""
+    try:
+        import anthropic
+    except ImportError as e:
+        raise RuntimeError("pip install anthropic (and set ANTHROPIC_API_KEY)") from e
 
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     resp = client.messages.create(
@@ -117,3 +124,10 @@ def make_plan(block_index: dict, files: dict, comments: list, meta: dict,
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
     return extract_json(text)
+
+
+def make_plan(block_index: dict, files: dict, comments: list, meta: dict,
+              model: str = DEFAULT_MODEL, max_tokens: int = 16000) -> dict:
+    """Build the prompt and call the model (convenience; no caching)."""
+    system, user = build_prompt(block_index, files, comments, meta)
+    return run_model(system, user, model=model, max_tokens=max_tokens)
