@@ -49,20 +49,14 @@ Follow these principles:
    it in a unit with `layer: 5, "uncertain": true` rather than omitting it. Never drop a
    block, a deletion, or a config change.
 
-6. **One unit per symbol; never "(continued)".** A unit is one coherent piece of the change —
-   a function or type and all of its changed blocks together. Attribute each block to the
-   symbol it belongs to using the **full file contents** below; the hunk `@@` header names the
-   *old* structure and is unreliable after a rewrite (a brand-new helper can sit under a stale
-   `func other` header). Gather all blocks of one symbol into a single unit, labeled by that
-   symbol. **Never** emit a `foo` and a `foo (continued)` pair, and never split one symbol's
-   changes across units. If you genuinely can't separate a run of blocks into distinct named
-   symbols, keep them in **one** unit rather than chopping by size. Err toward fewer, larger
-   units; don't manufacture a unit for every comment tweak or import.
-
-   Splitting a *single block* across units (whole id `"b012"`, or a line sub-range
-   `"b012:1-20"`) is a rare exception — only when one physical block truly mixes separate
-   concerns that belong to different chapters, and never mid-function. However you reference
-   blocks, the segments must cover every changed line exactly once.
+6. **One unit per symbol; never "(continued)".** Blocks are already split at
+   function/declaration boundaries, so a single function's changes are one or a few blocks —
+   gather **all** the blocks belonging to one function or type into a single unit, labeled by
+   that symbol. Use the **full file contents** below to attribute a block to its symbol; the
+   hunk `@@` header names the *old* structure and is unreliable after a rewrite. **Never** emit
+   a `foo` and a `foo (continued)` pair, and never split one symbol across units. Err toward
+   fewer, larger units — don't manufacture a unit for every comment tweak or import. Every
+   block id appears in exactly one unit.
 
 ## User
 
@@ -85,15 +79,14 @@ Existing review comments (anchor each to the block/unit it discusses, if any):
 Emit a single JSON object matching `docs/schema.md` → `ReadingPlan`. Requirements:
 
 - `units[]`: one per coherent piece of the change (see principle 6 — coarse, not fragmented),
-  each with `blocks[]` (block-id or `id:from-to` sub-range segments it covers) + `layer` +
-  `layerReason` + `summary` + optional `detail`. No raw code, no review notes, no risk scoring.
+  each with `blocks[]` (the block ids it covers) + `layer` + `layerReason` + `summary` +
+  optional `detail`. No raw code, no review notes, no risk scoring.
   - `summary`: one short line — the *point* of this change (its intent or effect), not a
     restatement of the diff. If the code speaks for itself, keep it to a few words.
   - `detail`: include **only** when it adds something the diff doesn't show — a reason, a
     non-obvious interaction or consequence. Omit it entirely for self-evident changes (most
     of the time).
-- **Coverage:** the segments across all `units[].blocks` must cover every changed line of
-  every block exactly once (whole blocks, or non-overlapping sub-ranges that tile a block).
+- **Coverage:** every block id in the index must appear in exactly one unit's `blocks`.
 - `edges[]`: caller→callee among units; set `resolved:false` when the target isn't in the
   diff.
 - `chapters[]`: ordered by outermost layer; nodes within a chapter ordered by `depth`

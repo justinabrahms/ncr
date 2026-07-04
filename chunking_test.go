@@ -47,20 +47,21 @@ func blockK(t *testing.T, idx Index, id string) int {
 	return 0
 }
 
+// rest covers every sample block except b002 (which the split tests exercise).
+var restBlocks = []string{"b001", "b003", "b004", "b005", "b006"}
+
 func TestSplitBlockCoversExactlyOnce(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
 	k := blockK(t, idx, "b002")
 	mid := k / 2
 	plan := planWith(
-		Unit{ID: "u1", Blocks: []string{"b001"}},
+		Unit{ID: "rest", Blocks: restBlocks},
 		Unit{ID: "u2", Blocks: []string{fmt.Sprintf("b002:1-%d", mid)}},
 		Unit{ID: "u3", Blocks: []string{fmt.Sprintf("b002:%d-%d", mid+1, k)}},
-		Unit{ID: "u4", Blocks: []string{"b003"}},
-		Unit{ID: "u5", Blocks: []string{"b004"}},
 	)
 	reconcile(&plan, idx, nil)
 	cov := plan.Coverage
-	if !cov.OK || cov.Repaired || cov.Counts.Placed != 4 {
+	if !cov.OK || cov.Repaired || cov.Counts.Placed != 6 {
 		t.Fatalf("split block should cover cleanly: %+v", cov)
 	}
 }
@@ -69,19 +70,16 @@ func TestSplitGapIsAutoRepaired(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
 	k := blockK(t, idx, "b002")
 	plan := planWith(
-		Unit{ID: "u1", Blocks: []string{"b001"}},
+		Unit{ID: "rest", Blocks: restBlocks},
 		Unit{ID: "u2", Blocks: []string{"b002:1-5"}}, // leaves b002:6-k uncovered
-		Unit{ID: "u4", Blocks: []string{"b003"}},
-		Unit{ID: "u5", Blocks: []string{"b004"}},
 	)
 	reconcile(&plan, idx, nil)
 	want := fmt.Sprintf("b002:6-%d", k)
 	if !contains(plan.Coverage.Missing, want) || !plan.Coverage.Repaired {
 		t.Fatalf("gap %s should be reported + repaired: %+v", want, plan.Coverage)
 	}
-	// after repair every block is fully covered
-	if plan.Coverage.Counts.Placed != 4 {
-		t.Fatalf("placed after repair = %d, want 4", plan.Coverage.Counts.Placed)
+	if plan.Coverage.Counts.Placed != 6 {
+		t.Fatalf("placed after repair = %d, want 6", plan.Coverage.Counts.Placed)
 	}
 }
 
@@ -89,11 +87,9 @@ func TestSplitOverlapIsFlagged(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
 	k := blockK(t, idx, "b002")
 	plan := planWith(
-		Unit{ID: "u1", Blocks: []string{"b001"}},
+		Unit{ID: "rest", Blocks: restBlocks},
 		Unit{ID: "u2", Blocks: []string{"b002:1-8"}},
 		Unit{ID: "u3", Blocks: []string{fmt.Sprintf("b002:6-%d", k)}}, // overlaps 6-8
-		Unit{ID: "u4", Blocks: []string{"b003"}},
-		Unit{ID: "u5", Blocks: []string{"b004"}},
 	)
 	reconcile(&plan, idx, nil)
 	if !contains(plan.Coverage.Duplicated, "b002:6-8") || plan.Coverage.OK {
@@ -104,7 +100,7 @@ func TestSplitOverlapIsFlagged(t *testing.T) {
 func TestDanglingSegmentReported(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
 	plan := planWith(
-		Unit{ID: "u1", Blocks: []string{"b001", "b002", "b003", "b004"}},
+		Unit{ID: "u1", Blocks: append([]string{"b002"}, restBlocks...)},
 		Unit{ID: "u2", Blocks: []string{"bZZZ"}}, // nonexistent
 	)
 	reconcile(&plan, idx, nil)

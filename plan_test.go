@@ -98,15 +98,15 @@ func TestParseModelResponseTextFallback(t *testing.T) {
 	}
 }
 
-func TestPlanToolAllowsSegments(t *testing.T) {
+func TestPlanToolCarriesBlockEnum(t *testing.T) {
 	raw, err := json.Marshal(planTool(Index{BlockIDs: []string{"b001", "b002"}}))
 	if err != nil || !json.Valid(raw) {
 		t.Fatalf("planTool did not marshal to valid JSON: %v", err)
 	}
-	// the blocks field must document sub-range splitting and the never-split rule
+	// the per-PR block-id enum constrains the model to real ids
 	s := string(raw)
-	if !strings.Contains(s, "b012:1-20") || !strings.Contains(s, "NEVER split a single function") {
-		t.Fatalf("blocks schema missing segment/split guidance: %s", s)
+	if !strings.Contains(s, "b001") || !strings.Contains(s, "b002") {
+		t.Fatalf("block-id enum missing from schema: %s", s)
 	}
 }
 
@@ -118,9 +118,9 @@ func TestToolShapedPlanNormalizesAndReconcilesFully(t *testing.T) {
 			{"title":"Contract","changeUnits":[{"blocks":["b001"],"symbol":"api","layer":0,"summary":"s"}]},
 			{"title":"Endpoint","changeUnits":[
 				{"blocks":["b002"],"symbol":"Place","layer":1,"summary":"s"},
-				{"blocks":["b003"],"symbol":"Service","layer":2,"summary":"s"}]}
+				{"blocks":["b003","b004","b005"],"symbol":"Service","layer":2,"summary":"s"}]}
 		],
-		"orphans":[{"layer":4,"changeUnits":[{"blocks":["b004"],"symbol":"","layer":4,"summary":"s"}]}]
+		"orphans":[{"layer":4,"changeUnits":[{"blocks":["b006"],"symbol":"","layer":4,"summary":"s"}]}]
 	}`)
 	var raw rawPlan
 	if err := json.Unmarshal(toolInput, &raw); err != nil {
@@ -128,7 +128,7 @@ func TestToolShapedPlanNormalizesAndReconcilesFully(t *testing.T) {
 	}
 	plan := normalizePlan(raw, idx)
 	reconcile(&plan, idx, nil)
-	if !plan.Coverage.OK || plan.Coverage.Counts.Placed != 4 {
+	if !plan.Coverage.OK || plan.Coverage.Counts.Placed != 6 {
 		t.Fatalf("tool-shaped plan not fully placed: %+v", plan.Coverage)
 	}
 }

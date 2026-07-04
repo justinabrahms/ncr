@@ -8,12 +8,13 @@ The LLM is a reordering and narration engine. It is **not trusted** with complet
 
 ## The three guarantees
 
-1. **Every changed line is placed exactly once.** Checked at line granularity: a unit may
-   reference a whole block (`"b07"`) or a sub-range of it (`"b07:1-20"`) so the narrative can
-   split a big block, but the reconciler proves the segments tile every changed line of every
-   block with no gaps and no overlaps. A gap → surfaced (auto-repaired into "Unplaced"), an
-   overlap → flagged. ("Never split a function" is a prompt instruction; this line accounting
-   is what makes splitting safe regardless.)
+1. **Every change block is placed exactly once.** Blocks are split *deterministically at
+   index time* at top-level declaration boundaries (`splitRunAtDecls`), so a hunk that adds
+   several functions becomes one block per function — the narrative can chunk without the
+   model ever doing fragile line arithmetic, and a single function can never be split (its
+   body is indented). The model references whole block ids (constrained by a per-PR enum);
+   the reconciler proves the coverage at line granularity (it also auto-repairs partial gaps
+   as `id:a-b` ranges). A gap → surfaced (auto-repaired into "Unplaced"), an overlap → flagged.
 2. **Displayed code is verbatim.** The UI renders each hunk from the deterministic index,
    keyed by block id — never from LLM output. The model cannot alter, truncate, or
    invent a line of the diff, because it never emits diff lines.
