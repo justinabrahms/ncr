@@ -152,14 +152,15 @@ func run(argv []string) int {
 				return 2
 			}
 			logf("asking %s to organize the reading path (spends API credits) …", mdl)
-			b, err := runModel(system, user, mdl, defaultMaxToks, planTool(index))
+			b, usage, err := runModel(system, user, mdl, defaultMaxToks, planTool(index))
 			if err != nil {
 				return fail(err)
 			}
 			planBytes = b
 			_ = cacheSave(pkey, planBytes)
+			logf("plan cost: %s", usage.summary(mdl))
 		} else {
-			logf("using cached plan — no API call")
+			logf("using cached plan — no API call ($0.00)")
 		}
 		if err := json.Unmarshal(planBytes, &raw); err != nil {
 			return fail(err)

@@ -213,10 +213,10 @@ func planTool(index Index) map[string]any {
 // runModel calls the Messages API forcing planTool, and returns the tool input
 // (structured JSON). Falls back to text extraction only if no tool_use block is
 // present (shouldn't happen with tool_choice, but be defensive).
-func runModel(system, user, model string, maxTokens int, tool map[string]any) ([]byte, error) {
+func runModel(system, user, model string, maxTokens int, tool map[string]any) ([]byte, Usage, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY is not set")
+		return nil, Usage{}, fmt.Errorf("ANTHROPIC_API_KEY is not set")
 	}
 	reqMap := map[string]any{
 		"model":      model,
@@ -235,7 +235,7 @@ func runModel(system, user, model string, maxTokens int, tool map[string]any) ([
 
 	req, err := http.NewRequest("POST", anthropicURL, bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, err
+		return nil, Usage{}, err
 	}
 	req.Header.Set("x-api-key", key)
 	req.Header.Set("anthropic-version", anthropicVers)
@@ -243,19 +243,20 @@ func runModel(system, user, model string, maxTokens int, tool map[string]any) ([
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, Usage{}, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("anthropic API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, Usage{}, fmt.Errorf("anthropic API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return parseModelResponse(body, maxTokens)
 }
 
 // parseModelResponse pulls the plan JSON out of a Messages API response: the
-// forced tool_use input when present, else text (via extractJSON).
-func parseModelResponse(body []byte, maxTokens int) ([]byte, error) {
+// forced tool_use input when present, else text (via extractJSON). It also
+// returns token usage for cost reporting.
+func parseModelResponse(body []byte, maxTokens int) ([]byte, Usage, error) {
 	var parsed struct {
 		Content []struct {
 			Type  string          `json:"type"`
@@ -263,16 +264,17 @@ func parseModelResponse(body []byte, maxTokens int) ([]byte, error) {
 			Input json.RawMessage `json:"input"`
 		} `json:"content"`
 		StopReason string `json:"stop_reason"`
+		Usage      Usage  `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, err
+		return nil, Usage{}, err
 	}
 	if parsed.StopReason == "max_tokens" {
-		return nil, fmt.Errorf("model response hit max_tokens (%d) — the plan was truncated; raise the token budget", maxTokens)
+		return nil, parsed.Usage, fmt.Errorf("model response hit max_tokens (%d) — the plan was truncated; raise the token budget", maxTokens)
 	}
 	for _, c := range parsed.Content {
 		if c.Type == "tool_use" && len(c.Input) > 0 {
-			return c.Input, nil // already clean structured JSON
+			return c.Input, parsed.Usage, nil // already clean structured JSON
 		}
 	}
 	var sb strings.Builder
@@ -282,9 +284,10 @@ func parseModelResponse(body []byte, maxTokens int) ([]byte, error) {
 		}
 	}
 	if sb.Len() == 0 {
-		return nil, fmt.Errorf("model returned no tool_use and no text")
+		return nil, parsed.Usage, fmt.Errorf("model returned no tool_use and no text")
 	}
-	return extractJSON(sb.String())
+	b, err := extractJSON(sb.String())
+	return b, parsed.Usage, err
 }
 
 // extractJSON is a defensive fallback for text responses: it returns the largest

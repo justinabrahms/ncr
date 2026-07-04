@@ -63,11 +63,11 @@ func TestExtractJSONBraceInString(t *testing.T) {
 }
 
 func TestParseModelResponseToolUse(t *testing.T) {
-	body := []byte(`{"stop_reason":"tool_use","content":[
+	body := []byte(`{"stop_reason":"tool_use","usage":{"input_tokens":500,"output_tokens":80},"content":[
 		{"type":"text","text":"here you go"},
 		{"type":"tool_use","name":"submit_reading_plan","input":{"overview":"o","chapters":[]}}
 	]}`)
-	b, err := parseModelResponse(body, 1000)
+	b, usage, err := parseModelResponse(body, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,18 +75,21 @@ func TestParseModelResponseToolUse(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil || m["overview"] != "o" {
 		t.Fatalf("tool input not returned cleanly: %s (%v)", b, err)
 	}
+	if usage.InputTokens != 500 || usage.OutputTokens != 80 {
+		t.Fatalf("usage not parsed: %+v", usage)
+	}
 }
 
 func TestParseModelResponseMaxTokens(t *testing.T) {
 	body := []byte(`{"stop_reason":"max_tokens","content":[{"type":"tool_use","input":{"chapters":[]}}]}`)
-	if _, err := parseModelResponse(body, 100); err == nil {
+	if _, _, err := parseModelResponse(body, 100); err == nil {
 		t.Fatal("expected truncation error on max_tokens")
 	}
 }
 
 func TestParseModelResponseTextFallback(t *testing.T) {
 	body := []byte(`{"stop_reason":"end_turn","content":[{"type":"text","text":"plan:\n{\"chapters\":[]}"}]}`)
-	b, err := parseModelResponse(body, 1000)
+	b, _, err := parseModelResponse(body, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
