@@ -11,8 +11,6 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
-const sep = "\x00sep"
-
 type layerInfo struct {
 	name, color string
 }
@@ -108,20 +106,25 @@ func strip(l string) string {
 	return l
 }
 
+type diffItem struct {
+	dl  *DiffLine
+	sep bool
+}
+
 func diffHTML(blocks []Block, language, path string) template.HTML {
-	var lines []string
-	for i, blk := range blocks {
-		if i > 0 {
-			lines = append(lines, sep)
+	var items []diffItem
+	for bi := range blocks {
+		if bi > 0 {
+			items = append(items, diffItem{sep: true})
 		}
-		lines = append(lines, blk.ContextBefore...)
-		lines = append(lines, strings.Split(blk.Text, "\n")...)
-		lines = append(lines, blk.ContextAfter...)
+		for li := range blocks[bi].Lines {
+			items = append(items, diffItem{dl: &blocks[bi].Lines[li]})
+		}
 	}
 	var codeLines []string
-	for _, l := range lines {
-		if l != sep {
-			codeLines = append(codeLines, strip(l))
+	for _, it := range items {
+		if !it.sep {
+			codeLines = append(codeLines, strip(it.dl.Text))
 		}
 	}
 	hl := highlightLines(strings.Join(codeLines, "\n"), language, path, len(codeLines))
@@ -129,23 +132,29 @@ func diffHTML(blocks []Block, language, path string) template.HTML {
 	var b strings.Builder
 	b.WriteString(`<pre class="chroma diff">`)
 	k := 0
-	for _, l := range lines {
-		if l == sep {
+	for _, it := range items {
+		if it.sep {
 			b.WriteString(`<span class="l sep"><span class="gutter">⋯</span></span>`)
 			continue
 		}
+		dl := it.dl
 		code := hl[k]
 		k++
-		cls, mark := "ctx", " "
-		if l != "" && l[0] == '+' {
-			cls, mark = "add", "+"
-		} else if l != "" && l[0] == '-' {
-			cls, mark = "del", "-"
-		}
 		if code == "" {
 			code = " "
 		}
-		b.WriteString(`<span class="l ` + cls + `"><span class="gutter">` + mark + `</span>` + code + `</span>`)
+		cls, mark, side, lineNo := "ctx", " ", "RIGHT", dl.NewNo
+		switch dl.Kind {
+		case "add":
+			cls, mark, side, lineNo = "add", "+", "RIGHT", dl.NewNo
+		case "del":
+			cls, mark, side, lineNo = "del", "-", "LEFT", dl.OldNo
+		}
+		// data-* attributes anchor a click to a GitHub review position.
+		fmt.Fprintf(&b,
+			`<span class="l %s" data-path="%s" data-side="%s" data-line="%d" data-text="%s"><span class="gutter">%s</span>%s</span>`,
+			cls, template.HTMLEscapeString(path), side, lineNo,
+			template.HTMLEscapeString(strip(dl.Text)), mark, code)
 	}
 	b.WriteString("</pre>")
 	return template.HTML(b.String())
@@ -184,6 +193,7 @@ type pageView struct {
 	Overview          template.HTML
 	CSS               template.CSS
 	Chapters, Orphans []chapterView
+	Interactive       bool // serve mode: include the commenting UI
 }
 
 func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols map[string]string) nodeView {
@@ -235,7 +245,7 @@ func callsHTML(unitID string, edges []Edge, unitSymbols map[string]string) templ
 	return template.HTML(`<div class="calls">calls: ` + strings.Join(parts, ", ") + `</div>`)
 }
 
-func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
+func BuildHTML(plan ReadingPlan, index Index, interactive bool) ([]byte, error) {
 	unitByID := map[string]Unit{}
 	for _, u := range plan.Units {
 		unitByID[u.ID] = u
@@ -308,6 +318,7 @@ func BuildHTML(plan ReadingPlan, index Index) ([]byte, error) {
 		Overview: mdRender(plan.Overview),
 		CSS:      template.CSS(pageCSS + "\n" + chromaCSS()),
 		Chapters: chapters, Orphans: orphans,
+		Interactive: interactive,
 	}
 
 	var b strings.Builder

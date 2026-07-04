@@ -181,7 +181,8 @@ func run(argv []string) int {
 	}
 	logf("coverage: %d/%d blocks — %s", cov.Counts.Placed, cov.Counts.Indexed, status)
 
-	html, err := BuildHTML(rplan, index)
+	interactive := !(*static || *diff != "")
+	html, err := BuildHTML(rplan, index, interactive)
 	if err != nil {
 		return fail(err)
 	}
@@ -207,7 +208,11 @@ func run(argv []string) int {
 		return 1
 	}
 
-	if err := serve(html, !*noOpen); err != nil {
+	rs, err := newReviewServer(repo, pr, meta.HeadRefOid, index)
+	if err != nil {
+		return fail(err)
+	}
+	if err := serve(html, rs, !*noOpen); err != nil {
 		return fail(err)
 	}
 	return 0

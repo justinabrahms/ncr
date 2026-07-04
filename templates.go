@@ -73,6 +73,7 @@ var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 document.getElementById('xall').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=true})};
 document.getElementById('call').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=false})};
 </script>
+{{if .Interactive}}<link rel="stylesheet" href="/review.css"><script src="/review.js" defer></script>{{end}}
 </body></html>
 
 {{define "chapter"}}

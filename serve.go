@@ -10,34 +10,15 @@ import (
 	"time"
 )
 
-// Phase 1 of the review-comments feature (docs/design-review-comments.md): serve
-// the rendered page over localhost instead of writing a file. The comment queue +
-// submit API land in later phases; for now this just hosts the HTML and blocks
-// until Ctrl-C.
-
-// reviewHandler serves the rendered review page. Kept separate so it's testable
-// and so later phases can hang the /api/* routes off the same mux.
-func reviewHandler(html []byte) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(html)
-	})
-	return mux
-}
-
-// serve hosts the page on a free localhost port and blocks until interrupted.
-func serve(html []byte, open bool) error {
+// serve hosts the review page + /api/* comment routes on a free localhost port
+// and blocks until interrupted. See docs/design-review-comments.md.
+func serve(html []byte, rs *reviewServer, open bool) error {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}
 	url := "http://" + ln.Addr().String() + "/"
-	srv := &http.Server{Handler: reviewHandler(html)}
+	srv := &http.Server{Handler: rs.handler(html)}
 	go func() { _ = srv.Serve(ln) }()
 
 	logf("serving %s  (Ctrl-C to stop)", url)
