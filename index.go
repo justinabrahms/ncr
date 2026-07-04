@@ -123,6 +123,74 @@ func neighborRecs(recs []rec, start, step int) []rec {
 	return out
 }
 
+// content strips a diff line's +/-/space marker.
+func content(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	return raw[1:]
+}
+
+// declStart reports whether a line begins a new top-level construct: column 0 (a
+// function/type body is indented, so this is never inside one) and not a closer.
+func declStart(code string) bool {
+	if code == "" || code[0] == ' ' || code[0] == '\t' {
+		return false
+	}
+	switch code[0] {
+	case '}', ')', ']', ',', ';':
+		return false
+	}
+	return true
+}
+
+// declEnds reports whether a line ends the previous construct — blank, or a
+// column-0 closing brace/paren.
+func declEnds(code string) bool {
+	if strings.TrimSpace(code) == "" {
+		return true
+	}
+	return code[0] == '}' || code[0] == ')'
+}
+
+func hasRealContent(part []rec) bool {
+	for _, r := range part {
+		if strings.TrimSpace(content(r.raw)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// splitRunAtDecls breaks a run of changed lines at top-level declaration
+// boundaries, so a block that adds several functions becomes one block per
+// function. Deterministic and conservative: it only cuts where a new column-0
+// declaration begins right after the previous one ended, so it can never split a
+// single function (whose body is indented). Worst case it under-splits.
+func splitRunAtDecls(run []rec) [][]rec {
+	var parts [][]rec
+	var cur []rec
+	for i := range run {
+		if i > 0 && hasRealContent(cur) &&
+			declStart(content(run[i].raw)) && declEnds(content(run[i-1].raw)) {
+			parts = append(parts, cur)
+			cur = nil
+		}
+		cur = append(cur, run[i])
+	}
+	if len(cur) > 0 {
+		parts = append(parts, cur)
+	}
+	if len(parts) == 0 {
+		return [][]rec{run}
+	}
+	return parts
+}
+
+func diffLineOf(r rec) DiffLine {
+	return DiffLine{Kind: r.kind, Text: r.raw, OldNo: r.oldNo, NewNo: r.newNo}
+}
+
 func indexDiff(diff string) []Block {
 	blocks := []Block{}
 	counter := 0
@@ -144,44 +212,59 @@ func indexDiff(diff string) []Block {
 				j++
 			}
 			run := recs[i:j]
-			counter++
-			var texts []string
-			oldLines, newLines := 0, 0
-			var oldStart, newStart *int
-			for _, x := range run {
-				texts = append(texts, x.raw)
-				if x.kind == "del" {
-					if oldStart == nil {
-						v := x.oldNo
-						oldStart = &v
+			before := neighborRecs(recs, i-1, -1)
+			after := neighborRecs(recs, j, 1)
+			parts := splitRunAtDecls(run)
+			for pi, part := range parts {
+				counter++
+				var texts []string
+				oldLines, newLines := 0, 0
+				var oldStart, newStart *int
+				for _, x := range part {
+					texts = append(texts, x.raw)
+					if x.kind == "del" {
+						if oldStart == nil {
+							v := x.oldNo
+							oldStart = &v
+						}
+						oldLines++
+					} else {
+						if newStart == nil {
+							v := x.newNo
+							newStart = &v
+						}
+						newLines++
 					}
-					oldLines++
-				} else {
-					if newStart == nil {
-						v := x.newNo
-						newStart = &v
-					}
-					newLines++
 				}
+				var lines []DiffLine
+				if pi == 0 { // leading context only on the first sub-block
+					for _, r := range before {
+						lines = append(lines, diffLineOf(r))
+					}
+				}
+				for _, r := range part {
+					lines = append(lines, diffLineOf(r))
+				}
+				if pi == len(parts)-1 { // trailing context only on the last
+					for _, r := range after {
+						lines = append(lines, diffLineOf(r))
+					}
+				}
+				text := strings.Join(texts, "\n")
+				blocks = append(blocks, Block{
+					BlockID:    fmt.Sprintf("b%03d", counter),
+					Path:       fd.path,
+					ChangeType: fd.changeType,
+					OldStart:   oldStart,
+					OldLines:   oldLines,
+					NewStart:   newStart,
+					NewLines:   newLines,
+					Header:     header,
+					Text:       text,
+					Sha:        shaOf(text),
+					Lines:      lines,
+				})
 			}
-			var lines []DiffLine
-			for _, r := range append(append(neighborRecs(recs, i-1, -1), run...), neighborRecs(recs, j, 1)...) {
-				lines = append(lines, DiffLine{Kind: r.kind, Text: r.raw, OldNo: r.oldNo, NewNo: r.newNo})
-			}
-			text := strings.Join(texts, "\n")
-			blocks = append(blocks, Block{
-				BlockID:    fmt.Sprintf("b%03d", counter),
-				Path:       fd.path,
-				ChangeType: fd.changeType,
-				OldStart:   oldStart,
-				OldLines:   oldLines,
-				NewStart:   newStart,
-				NewLines:   newLines,
-				Header:     header,
-				Text:       text,
-				Sha:        shaOf(text),
-				Lines:      lines,
-			})
 			i = j
 		}
 	}

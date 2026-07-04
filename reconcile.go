@@ -5,9 +5,10 @@ import (
 	"sort"
 )
 
-// Deterministic reconciler — port of ncr/reconcile.py. Proves every change block
-// is placed (set-equality vs. the index); auto-repairs any miss into a visible
-// "Unplaced" chapter so a bad model run can't lose a hunk. See docs/completeness.md.
+// Deterministic reconciler — the completeness guarantee, now at LINE granularity so
+// the narrative may split a block into sub-ranges (docs/completeness.md). It proves
+// every changed line of every block is covered by exactly one unit; gaps are
+// auto-repaired into a visible "Unplaced" chapter, overlaps are flagged.
 
 func nonNil(s []string) []string {
 	if s == nil {
@@ -18,33 +19,15 @@ func nonNil(s []string) []string {
 
 func reconcile(plan *ReadingPlan, index Index, commentBlocks []string) {
 	byID := map[string]Block{}
-	indexSet := map[string]bool{}
+	kOf := map[string]int{} // changed-line count per block
 	for _, b := range index.Blocks {
 		byID[b.BlockID] = b
-	}
-	for _, id := range index.BlockIDs {
-		indexSet[id] = true
+		kOf[b.BlockID] = changedCount(b)
 	}
 
-	placed := blockCounts(plan)
-
-	var missing []string
-	for _, id := range index.BlockIDs {
-		if placed[id] == 0 {
-			missing = append(missing, id)
-		}
-	}
-	var duplicated, dangling []string
-	for b, n := range placed {
-		if n > 1 {
-			duplicated = append(duplicated, b)
-		}
-		if !indexSet[b] {
-			dangling = append(dangling, b)
-		}
-	}
-	sort.Strings(duplicated)
-	sort.Strings(dangling)
+	cover, dangling := computeCover(plan, kOf)
+	missing := coverageGaps(index, kOf, cover, func(c int) bool { return c == 0 })
+	duplicated := coverageGaps(index, kOf, cover, func(c int) bool { return c > 1 })
 
 	unitIDs := map[string]bool{}
 	for _, u := range plan.Units {
@@ -70,29 +53,31 @@ func reconcile(plan *ReadingPlan, index Index, commentBlocks []string) {
 	sort.Strings(unplacedUnits)
 
 	var commentGaps []string
-	for _, b := range commentBlocks {
-		if placed[b] == 0 {
-			commentGaps = append(commentGaps, b)
+	for _, cb := range commentBlocks {
+		if !anyCovered(cover[cb]) {
+			commentGaps = append(commentGaps, cb)
 		}
 	}
+
+	ok := len(missing) == 0 && len(duplicated) == 0 && len(unplacedUnits) == 0 &&
+		len(dangling) == 0 && len(commentGaps) == 0
 
 	repaired := false
 	if len(missing) > 0 {
 		autoRepair(plan, missing, byID)
 		repaired = true
-		placed = blockCounts(plan)
+		cover, _ = computeCover(plan, kOf)
 	}
 
-	placedInIndex := 0
-	for _, id := range index.BlockIDs {
-		if placed[id] > 0 {
-			placedInIndex++
+	placed := 0
+	for _, b := range index.Blocks {
+		if !hasGap(cover[b.BlockID], kOf[b.BlockID]) {
+			placed++
 		}
 	}
 
 	cov := &Coverage{
-		OK: len(missing) == 0 && len(duplicated) == 0 && len(dangling) == 0 &&
-			len(unplacedUnits) == 0 && len(commentGaps) == 0,
+		OK:            ok,
 		Missing:       nonNil(missing),
 		Duplicated:    nonNil(duplicated),
 		UnplacedUnits: nonNil(unplacedUnits),
@@ -100,19 +85,99 @@ func reconcile(plan *ReadingPlan, index Index, commentBlocks []string) {
 		CommentGaps:   nonNil(commentGaps),
 		Repaired:      repaired,
 	}
-	cov.Counts.Indexed = len(index.BlockIDs)
-	cov.Counts.Placed = placedInIndex
+	cov.Counts.Indexed = len(index.Blocks)
+	cov.Counts.Placed = placed
 	plan.Coverage = cov
 }
 
-func blockCounts(plan *ReadingPlan) map[string]int {
-	c := map[string]int{}
+// computeCover tallies, per block, how many units cover each changed line. Bad
+// segments (unknown block, out-of-range) are collected as dangling.
+func computeCover(plan *ReadingPlan, kOf map[string]int) (map[string][]int, []string) {
+	cover := map[string][]int{}
+	var dangling []string
 	for _, u := range plan.Units {
-		for _, b := range u.Blocks {
-			c[b]++
+		for _, seg := range u.Blocks {
+			id, from, to, okSeg := parseSegment(seg)
+			k, exists := kOf[id]
+			if !okSeg || !exists {
+				dangling = append(dangling, seg)
+				continue
+			}
+			lo, hi := from, to
+			if from == 0 {
+				lo, hi = 1, k
+			}
+			if lo < 1 || hi > k {
+				dangling = append(dangling, seg)
+				if lo < 1 {
+					lo = 1
+				}
+				if hi > k {
+					hi = k
+				}
+			}
+			if lo > hi {
+				continue
+			}
+			if cover[id] == nil {
+				cover[id] = make([]int, k)
+			}
+			for i := lo - 1; i < hi; i++ {
+				cover[id][i]++
+			}
 		}
 	}
-	return c
+	return cover, dangling
+}
+
+// coverageGaps returns the line ranges (in index order) where pred(count) holds,
+// formatted as "id" for a whole block or "id:a-b" for a partial range.
+func coverageGaps(index Index, kOf map[string]int, cover map[string][]int, pred func(int) bool) []string {
+	var out []string
+	for _, b := range index.Blocks {
+		id, k, arr := b.BlockID, kOf[b.BlockID], cover[b.BlockID]
+		at := func(i int) int {
+			if arr == nil {
+				return 0
+			}
+			return arr[i]
+		}
+		for i := 0; i < k; {
+			if !pred(at(i)) {
+				i++
+				continue
+			}
+			j := i
+			for j < k && pred(at(j)) {
+				j++
+			}
+			if i == 0 && j == k {
+				out = append(out, id)
+			} else {
+				out = append(out, fmt.Sprintf("%s:%d-%d", id, i+1, j))
+			}
+			i = j
+		}
+	}
+	return out
+}
+
+func hasGap(arr []int, k int) bool {
+	for i := 0; i < k; i++ {
+		if arr == nil || arr[i] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func anyCovered(arr []int) bool {
+	for _, c := range arr {
+		if c > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func autoRepair(plan *ReadingPlan, missing []string, byID map[string]Block) {
@@ -123,7 +188,7 @@ func autoRepair(plan *ReadingPlan, missing []string, byID map[string]Block) {
 	layer5 := 5
 	var nodes []Node
 	n := 0
-	for _, bid := range missing {
+	for _, seg := range missing {
 		n++
 		id := fmt.Sprintf("u-unplaced-%d", n)
 		for existing[id] {
@@ -131,8 +196,8 @@ func autoRepair(plan *ReadingPlan, missing []string, byID map[string]Block) {
 			id = fmt.Sprintf("u-unplaced-%d", n)
 		}
 		existing[id] = true
-		blk := byID[bid]
-		file := blk.Path
+		bid, _, _, _ := parseSegment(seg)
+		file := byID[bid].Path
 		if file == "" {
 			file = "?"
 		}
@@ -140,17 +205,17 @@ func autoRepair(plan *ReadingPlan, missing []string, byID map[string]Block) {
 			ID:          id,
 			File:        file,
 			Layer:       &layer5,
-			LayerReason: "auto-repair: organizer did not place this block",
+			LayerReason: "auto-repair: organizer did not place these lines",
 			Uncertain:   true,
-			Summary:     fmt.Sprintf("Block %s the organizer left unplaced — shown here directly.", bid),
-			Blocks:      []string{bid},
+			Summary:     fmt.Sprintf("%s — lines the organizer left unplaced; shown here directly.", seg),
+			Blocks:      []string{seg},
 		})
 		nodes = append(nodes, Node{Unit: id, Depth: 0})
 	}
 	plan.Chapters = append(plan.Chapters, Chapter{
 		ID:      "c-unplaced",
 		Title:   "⚠ Unplaced changes",
-		Summary: fmt.Sprintf("%d change block(s) the organizer could not place. Shown verbatim so nothing is lost.", len(missing)),
+		Summary: fmt.Sprintf("%d change segment(s) the organizer could not place. Shown verbatim so nothing is lost.", len(missing)),
 		Nodes:   nodes,
 	})
 }

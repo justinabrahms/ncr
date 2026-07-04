@@ -35,8 +35,8 @@ func TestCompletePlanPassesClean(t *testing.T) {
 	plan := samplePlan(t)
 	reconcile(&plan, idx, nil)
 	cov := plan.Coverage
-	if !cov.OK || cov.Counts.Indexed != 4 || cov.Counts.Placed != 4 {
-		t.Fatalf("expected clean 4/4, got %+v", cov)
+	if !cov.OK || cov.Counts.Indexed != 6 || cov.Counts.Placed != 6 {
+		t.Fatalf("expected clean 6/6, got %+v", cov)
 	}
 	if len(cov.Missing) != 0 || len(cov.Duplicated) != 0 || cov.Repaired {
 		t.Fatalf("unexpected issues: %+v", cov)
@@ -46,7 +46,7 @@ func TestCompletePlanPassesClean(t *testing.T) {
 func TestDroppedBlockIsRescued(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
 	plan := samplePlan(t)
-	// simulate the model forgetting the migration block b004 (unit u4)
+	// simulate the model forgetting the migration block b006 (unit u4)
 	var kept []Unit
 	for _, u := range plan.Units {
 		if u.ID != "u4" {
@@ -58,15 +58,15 @@ func TestDroppedBlockIsRescued(t *testing.T) {
 
 	reconcile(&plan, idx, nil)
 	cov := plan.Coverage
-	if !contains(cov.Missing, "b004") || !cov.Repaired {
-		t.Fatalf("b004 not reported missing/repaired: %+v", cov)
+	if !contains(cov.Missing, "b006") || !cov.Repaired {
+		t.Fatalf("b006 not reported missing/repaired: %+v", cov)
 	}
 	var placed []string
 	for _, u := range plan.Units {
 		placed = append(placed, u.Blocks...)
 	}
 	sort.Strings(placed)
-	if !reflect.DeepEqual(placed, []string{"b001", "b002", "b003", "b004"}) {
+	if !reflect.DeepEqual(placed, []string{"b001", "b002", "b003", "b004", "b005", "b006"}) {
 		t.Fatalf("after repair, blocks = %v", placed)
 	}
 }

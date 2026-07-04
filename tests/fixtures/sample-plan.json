@@ -42,7 +42,7 @@
     {
       "id": "u3", "file": "internal/order/service.go", "language": "go",
       "symbol": "Service.Place", "kind": "method", "changeType": "added",
-      "blocks": ["b003"], "layer": 2,
+      "blocks": ["b003", "b004", "b005"], "layer": 2,
       "layerReason": "orchestrates domain construction + persistence",
       "references": ["NewOrder", "s.repo.Insert"],
       "summary": "Builds a domain Order from the request items and inserts it via the repo.",
@@ -51,7 +51,7 @@
     {
       "id": "u4", "file": "migrations/002_orders.sql", "language": "sql",
       "symbol": "", "kind": "migration", "changeType": "added",
-      "blocks": ["b004"], "layer": 4,
+      "blocks": ["b006"], "layer": 4,
       "layerReason": "schema migration for the orders table",
       "summary": "Creates the orders table (id, total_cents).",
       "detail": "The backing store the repository writes to."

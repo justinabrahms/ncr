@@ -114,12 +114,12 @@ type diffItem struct {
 
 func collapseWS(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-// wsNoise flags changed lines whose content is identical to a line on the other
-// side once whitespace is collapsed — e.g. a realignment (gofmt) that rewrites a
-// whole block with no real change. Returns a per-line mask.
-func wsNoise(b Block) []bool {
+// wsNoiseLines flags lines whose content is identical to a line on the other side
+// once whitespace is collapsed — e.g. a realignment (gofmt) that rewrites a whole
+// block with no real change. Returns a per-line mask.
+func wsNoiseLines(lines []DiffLine) []bool {
 	del, add := map[string]int{}, map[string]int{}
-	for _, l := range b.Lines {
+	for _, l := range lines {
 		c := collapseWS(strip(l.Text))
 		switch l.Kind {
 		case "del":
@@ -128,24 +128,39 @@ func wsNoise(b Block) []bool {
 			add[c]++
 		}
 	}
-	out := make([]bool, len(b.Lines))
-	for i, l := range b.Lines {
+	out := make([]bool, len(lines))
+	for i, l := range lines {
 		c := collapseWS(strip(l.Text))
 		out[i] = (l.Kind == "del" && add[c] > 0) || (l.Kind == "add" && del[c] > 0)
 	}
 	return out
 }
 
-func diffHTML(blocks []Block, language, path string) template.HTML {
+func wsNoise(b Block) []bool { return wsNoiseLines(b.Lines) }
+
+// diffSeg is a block, optionally restricted to a 1-based changed-line range
+// (from/to == 0 means the whole block).
+type diffSeg struct {
+	block    Block
+	from, to int
+}
+
+func diffHTML(segs []diffSeg, language, path string) template.HTML {
 	var items []diffItem
 	hasNoise := false
-	for bi := range blocks {
-		if bi > 0 {
+	first := true
+	for _, sg := range segs {
+		lines := segLines(sg.block, sg.from, sg.to)
+		if len(lines) == 0 {
+			continue
+		}
+		if !first {
 			items = append(items, diffItem{sep: true})
 		}
-		noise := wsNoise(blocks[bi])
-		for li := range blocks[bi].Lines {
-			items = append(items, diffItem{dl: &blocks[bi].Lines[li], wsn: noise[li]})
+		first = false
+		noise := wsNoiseLines(lines)
+		for li := range lines {
+			items = append(items, diffItem{dl: &lines[li], wsn: noise[li]})
 			if noise[li] {
 				hasNoise = true
 			}
@@ -234,10 +249,14 @@ type pageView struct {
 }
 
 func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols map[string]string) nodeView {
-	var blocks []Block
-	for _, id := range u.Blocks {
+	var segs []diffSeg
+	for _, seg := range u.Blocks {
+		id, from, to, ok := parseSegment(seg)
+		if !ok {
+			continue
+		}
 		if b, ok := blockByID[id]; ok {
-			blocks = append(blocks, b)
+			segs = append(segs, diffSeg{block: b, from: from, to: to})
 		}
 	}
 	sym := u.Symbol
@@ -258,7 +277,7 @@ func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols ma
 		Detail:  detail,
 		Meta:    meta,
 		Calls:   callsHTML(u.ID, edges, unitSymbols),
-		Diff:    diffHTML(blocks, u.Language, u.File),
+		Diff:    diffHTML(segs, u.Language, u.File),
 	}
 }
 

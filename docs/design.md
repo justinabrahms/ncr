@@ -5,8 +5,9 @@
 Input: a diff of ~300–3,000 lines (a GitHub PR, or a raw unified diff).
 
 Output: a **reordered, layered, annotated reading plan** for that diff — a tree of
-"chapters," each following a call path outside-in, with per-node plain-language
-explanations. Rendered in a UI that supports progressive disclosure.
+**chapters**, each a theme (a capability's call path, or a shared concern for a refactor),
+read outside-in, with per-node plain-language explanations. Rendered in a UI that supports
+progressive disclosure.
 
 The tool is an **explainer, not a reviewer**: it describes what the change does and how the
 pieces connect, in a good reading order. It does *not* critique the code, flag bugs, or
@@ -30,10 +31,17 @@ reading order.
 
 Two orthogonal structures on top of layers:
 
-- **Chapters** = call-path stories. A chapter is rooted at an entrypoint (or the highest
-  layer touched) and contains the changed nodes reachable from it, ordered by call depth.
-  A change reachable from two entrypoints is placed under its *primary* one and
-  cross-linked.
+- **Units** = concerns, not symbols. A unit is one idea the reader holds at once; it may
+  span several functions, types, or files if they advance the same concern. We deliberately
+  group coarsely — a handful of concern-units per PR, not one per function — because
+  reviewers comprehend a concern, not a function at a time (ClusterChanges, ICSE'15; Baum
+  et al., ICSME'17). The deterministic indexer still splits blocks at function boundaries,
+  but that's the completeness-accounting grain; units regroup those blocks by concern.
+- **Chapters** = themes. When the change adds behavior, a chapter is a *capability*: rooted
+  at an entrypoint (or the highest layer touched), it contains the changed nodes reachable
+  from it, ordered by call depth. When there is no call path — a refactor or tooling change —
+  a chapter is the *shared concern* its units advance. **Never one chapter per file.** A
+  change reachable from two entrypoints is placed under its *primary* one and cross-linked.
 - **Orphans** = changed nodes with no caller in the diff (e.g. a new util, a migration
   nobody in the diff references). Collected into their own end-of-report chapters, grouped
   by layer, so they don't pollute the narrative but aren't lost.
@@ -42,9 +50,9 @@ Two orthogonal structures on top of layers:
 
 ```
 gh CLI ─▶ [I] Index ─▶ [P] Plan (LLM, single-shot) ─▶ [R] Reconcile ─▶ reading-plan.json ─▶ UI
- diff +     diff →        block-index + PR ctx  →       set-equality      (+coverage badge)
+ diff +     diff →        block-index + PR ctx  →       line-coverage     (+coverage badge)
  files +    stable ID'd   → reading plan of         →   check; auto-repair
- comments   blocks (det.) chapters/units (ids only)    missing into Unplaced
+ comments   blocks (det.) chapters/units (ids only)    gaps into Unplaced
             ▲ source of truth for completeness                ▲ deterministic, no model
 ```
 
@@ -56,9 +64,11 @@ gh CLI ─▶ [I] Index ─▶ [P] Plan (LLM, single-shot) ─▶ [R] Reconcile 
   (`block-index.json`). This is the completeness source of truth. See `docs/completeness.md`.
 - **[P] Plan** — LLM, single-shot (`prompts/00-single-shot.md`). Given the block index +
   full files + PR context, emit the reading plan (chapters, units, layers, edges,
-  narrative). Units reference **block ids**, never raw code.
-- **[R] Reconcile** — non-LLM, deterministic. Assert every block id is placed exactly once;
-  auto-repair any miss into an `Unplaced` chapter; attach PR comments to their blocks;
+  narrative), grouping blocks into units by concern. Units reference **block ids**, never
+  raw code.
+- **[R] Reconcile** — non-LLM, deterministic. Assert every changed *line* of every block is
+  placed exactly once (line granularity, so a block may be split across units);
+  auto-repair any gap into an `Unplaced` chapter; attach PR comments to their blocks;
   write the `coverage` report. See `docs/completeness.md`.
 
 The staged prompts (`01`–`04`) are kept for when single-shot gets unreliable at 3k lines,

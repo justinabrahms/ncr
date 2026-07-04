@@ -37,7 +37,7 @@ func TestWSToggleRenderedWhenNoisePresent(t *testing.T) {
 		{Kind: "del", Text: "-a  b", OldNo: 1},
 		{Kind: "add", Text: "+a b", NewNo: 1},
 	}}
-	out := string(diffHTML([]Block{b}, "go", "x.go"))
+	out := string(diffHTML([]diffSeg{{block: b}}, "go", "x.go"))
 	if !strings.Contains(out, `class="wstoggle"`) || !strings.Contains(out, "l add wsn") {
 		t.Fatalf("expected toggle + wsn class, got: %s", out)
 	}
