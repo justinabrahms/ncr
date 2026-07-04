@@ -20,8 +20,9 @@ type reviewServer struct {
 	mu       sync.Mutex
 	state    *ReviewState
 	index    Index
-	plan     ReadingPlan // the reconciled reading plan this session is serving
-	model    string      // model that produced the plan ("" when loaded from --plan)
+	plan     ReadingPlan     // the reconciled reading plan this session is serving
+	rawPlan  json.RawMessage // the plan's raw bytes, pre normalize/reconcile (nil in tests)
+	model    string          // model that produced the plan ("" when loaded from --plan)
 	repo     string
 	pr       int
 	anchors  map[string]bool                      // valid (path,side,line) comment positions
@@ -29,7 +30,7 @@ type reviewServer struct {
 	submitFn func(payload []byte) (string, error) // posts the review; gh by default
 }
 
-func newReviewServer(repo string, pr int, headSha string, index Index, plan ReadingPlan, model string) (*reviewServer, error) {
+func newReviewServer(repo string, pr int, headSha string, index Index, plan ReadingPlan, rawPlan json.RawMessage, model string) (*reviewServer, error) {
 	st, err := loadState(repo, pr)
 	if err != nil {
 		return nil, err
@@ -46,6 +47,7 @@ func newReviewServer(repo string, pr int, headSha string, index Index, plan Read
 		state:    st,
 		index:    index,
 		plan:     plan,
+		rawPlan:  rawPlan,
 		model:    model,
 		repo:     repo,
 		pr:       pr,
@@ -127,8 +129,10 @@ func (rs *reviewServer) handleState(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDebug dumps the full in-memory session state — the reconciled reading
-// plan, its coverage report, and the review-comment queue — for an external MCP
-// server or bug-report triage to introspect without scraping the rendered HTML.
+// plan, the raw pre-reconcile plan the model produced, the coverage report, and
+// the review-comment queue — for an external MCP server or bug-report triage to
+// introspect without scraping the rendered HTML. rawPlan lets triage see what the
+// model returned before normalize/reconcile touched it (null when unavailable).
 // The block index (large: full rendered diff lines) is included only with
 // ?verbose=1, so the default payload stays small and MCP-friendly. Read-only.
 func (rs *reviewServer) handleDebug(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +145,7 @@ func (rs *reviewServer) handleDebug(w http.ResponseWriter, r *http.Request) {
 		"headSha":  rs.state.HeadSha,
 		"model":    rs.model,
 		"plan":     rs.plan,
+		"rawPlan":  rs.rawPlan,
 		"coverage": rs.plan.Coverage,
 		"review": map[string]any{
 			"draft":     rs.state.Draft,

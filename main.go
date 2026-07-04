@@ -122,12 +122,14 @@ func run(argv []string) int {
 	logf("indexed %d change blocks", len(index.BlockIDs))
 
 	var raw rawPlan
-	var planModel string // model that produced the plan; "" when loaded from --plan
+	var planModel string            // model that produced the plan; "" when loaded from --plan
+	var rawPlanJSON json.RawMessage // the plan's raw bytes, pre normalize/reconcile (for /api/debug)
 	if *plan != "" {
 		b, err := os.ReadFile(*plan)
 		if err != nil {
 			return fail(err)
 		}
+		rawPlanJSON = b
 		if err := json.Unmarshal(b, &raw); err != nil {
 			return fail(err)
 		}
@@ -164,6 +166,7 @@ func run(argv []string) int {
 		} else {
 			logf("using cached plan — no API call ($0.00)")
 		}
+		rawPlanJSON = planBytes
 		if err := json.Unmarshal(planBytes, &raw); err != nil {
 			return fail(err)
 		}
@@ -211,7 +214,7 @@ func run(argv []string) int {
 		return 1
 	}
 
-	rs, err := newReviewServer(repo, pr, meta.HeadRefOid, index, rplan, planModel)
+	rs, err := newReviewServer(repo, pr, meta.HeadRefOid, index, rplan, rawPlanJSON, planModel)
 	if err != nil {
 		return fail(err)
 	}

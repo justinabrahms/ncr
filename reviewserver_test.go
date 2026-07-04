@@ -11,7 +11,7 @@ import (
 func newTestServer(t *testing.T) *reviewServer {
 	t.Helper()
 	t.Setenv("NCR_STATE_DIR", t.TempDir())
-	rs, err := newReviewServer("owner/repo", 7, "headsha", buildIndex(sampleDiff(t)), ReadingPlan{}, "")
+	rs, err := newReviewServer("owner/repo", 7, "headsha", buildIndex(sampleDiff(t)), ReadingPlan{}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,8 @@ func TestDebugDumpsPlanCoverageAndReview(t *testing.T) {
 		Units:    []Unit{{ID: "u1", File: "a.go", Symbol: "F", Layer: &layer}},
 		Coverage: &Coverage{OK: false, Missing: []string{"b1"}},
 	}
-	rs, err := newReviewServer("owner/repo", 7, "headsha", idx, plan, "claude-test-model")
+	rawPlan := json.RawMessage(`{"overview":"raw model output","chapters":[]}`)
+	rs, err := newReviewServer("owner/repo", 7, "headsha", idx, plan, rawPlan, "claude-test-model")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,12 +196,13 @@ func TestDebugDumpsPlanCoverageAndReview(t *testing.T) {
 		t.Fatalf("debug: %d %s", rec.Code, rec.Body.String())
 	}
 	var out struct {
-		Version  string      `json:"version"`
-		Model    string      `json:"model"`
-		HeadSha  string      `json:"headSha"`
-		Plan     ReadingPlan `json:"plan"`
-		Coverage *Coverage   `json:"coverage"`
-		Index    *Index      `json:"index"`
+		Version  string          `json:"version"`
+		Model    string          `json:"model"`
+		HeadSha  string          `json:"headSha"`
+		Plan     ReadingPlan     `json:"plan"`
+		RawPlan  json.RawMessage `json:"rawPlan"`
+		Coverage *Coverage       `json:"coverage"`
+		Index    *Index          `json:"index"`
 		Review   struct {
 			Pending []ReviewComment `json:"pending"`
 		} `json:"review"`
@@ -216,6 +218,9 @@ func TestDebugDumpsPlanCoverageAndReview(t *testing.T) {
 	}
 	if out.Coverage == nil || out.Coverage.OK || len(out.Coverage.Missing) != 1 {
 		t.Fatalf("coverage not dumped: %+v", out.Coverage)
+	}
+	if !strings.Contains(string(out.RawPlan), "raw model output") {
+		t.Fatalf("rawPlan not dumped verbatim: %s", out.RawPlan)
 	}
 	if out.Review.Pending == nil {
 		t.Fatalf("review.pending should be [] not null")
