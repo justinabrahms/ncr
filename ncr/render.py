@@ -9,6 +9,18 @@ from __future__ import annotations
 import html
 from typing import Optional
 
+try:
+    from pygments import highlight as _pyg_highlight
+    from pygments.formatters import HtmlFormatter
+    from pygments.lexers import get_lexer_by_name, guess_lexer_for_filename
+    from pygments.util import ClassNotFound
+    _PYG = True
+    _FORMATTER = HtmlFormatter(nowrap=True, style="monokai")
+    _PYG_CSS = HtmlFormatter(style="monokai").get_style_defs(".diff")
+except ImportError:  # highlighting is optional; renderer degrades gracefully
+    _PYG = False
+    _PYG_CSS = ""
+
 LAYERS = {
     0: ("Contract", "#6b46c1"),
     1: ("Entrypoint", "#2563eb"),
@@ -32,11 +44,46 @@ def _layer_badge(layer: Optional[int]) -> str:
     return f'<span class="badge" style="background:{color}">{layer} {name}</span>'
 
 
-def _diff_html(text: str) -> str:
+def _lexer(language: str, path: str):
+    if not _PYG:
+        return None
+    if language:
+        try:
+            return get_lexer_by_name(language)
+        except ClassNotFound:
+            pass
+    try:
+        return guess_lexer_for_filename(path or "x.txt", "")
+    except ClassNotFound:
+        return None
+
+
+def _highlight_lines(code: str, lexer) -> list[str]:
+    """Return per-line highlighted HTML for `code` (no +/- prefix)."""
+    if lexer is None:
+        return [_esc(l) for l in code.split("\n")]
+    out = _pyg_highlight(code, lexer, _FORMATTER)
+    # nowrap formatter keeps newlines; a trailing newline yields a spurious last line
+    lines = out.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _diff_html(text: str, language: str = "", path: str = "") -> str:
+    lines = text.splitlines()
+    prefixes = [l[:1] for l in lines]
+    # highlight the block's code as a whole (so multi-line constructs resolve),
+    # with the +/- marker column stripped first
+    stripped = "\n".join(l[1:] if l[:1] in "+- " else l for l in lines)
+    hl = _highlight_lines(stripped, _lexer(language, path))
+    if len(hl) != len(lines):  # highlighter disagreed on line count; fall back safely
+        hl = [_esc(l[1:] if l[:1] in "+- " else l) for l in lines]
     rows = []
-    for line in text.splitlines():
-        cls = {"+": "add", "-": "del"}.get(line[:1], "ctx")
-        rows.append(f'<span class="l {cls}">{_esc(line)}</span>')
+    for prefix, code in zip(prefixes, hl):
+        cls = {"+": "add", "-": "del"}.get(prefix, "ctx")
+        mark = prefix if prefix in "+-" else " "
+        rows.append(f'<span class="l {cls}"><span class="gutter">{mark}</span>{code}</span>')
     return '<pre class="diff">' + "\n".join(rows) + "</pre>"
 
 
@@ -60,6 +107,7 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
                 calls.append('<span class="ext">↳ into unchanged code</span>')
     calls_html = f'<div class="calls">calls: {", ".join(calls)}</div>' if calls else ""
 
+    diff = _diff_html(code, unit.get("language", ""), unit.get("file", ""))
     sym = _esc(unit.get("symbol") or unit.get("file", ""))
     blocks_tag = " ".join(unit.get("blocks", []))
     return f"""
@@ -75,7 +123,7 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
     {why}
     {notes_html}
     {calls_html}
-    {_diff_html(code)}
+    {diff}
   </div>
 </details>"""
 
@@ -127,7 +175,8 @@ def build_html(plan: dict, index: dict) -> str:
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} — narrative review</title>
-<style>{_CSS}</style></head>
+<style>{_CSS}
+{_PYG_CSS}</style></head>
 <body>
 <header>
   <div class="titlebar">
@@ -182,9 +231,11 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .calls{font-size:13px;color:var(--muted);margin-bottom:8px}
 .calls a{color:#2563eb;text-decoration:none}
 .ext{color:#94a3b8}
-.diff{margin:0;padding:10px;background:#0f172a;border-radius:6px;overflow-x:auto;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
-.diff .l{display:block;white-space:pre}
-.diff .add{color:#4ade80}
-.diff .del{color:#f87171}
-.diff .ctx{color:#94a3b8}
+.diff{margin:0;padding:8px 0;background:#272822;border-radius:6px;overflow-x:auto;color:#f8f8f2;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.diff .l{display:block;white-space:pre;padding-right:10px}
+.diff .gutter{display:inline-block;width:1.6em;text-align:center;color:#75715e;user-select:none}
+.diff .add{background:rgba(74,222,128,.14)}
+.diff .add .gutter{color:#4ade80}
+.diff .del{background:rgba(248,113,113,.14)}
+.diff .del .gutter{color:#f87171}
 """
