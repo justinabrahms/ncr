@@ -193,7 +193,7 @@ _CSS = """
 :root{--fg:#1e293b;--muted:#64748b;--bg:#f8fafc;--card:#fff;--line:#e2e8f0}
 *{box-sizing:border-box}
 body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--fg);background:var(--bg)}
-header{padding:24px 32px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+header{padding:24px 32px;background:var(--card);border-bottom:1px solid var(--line)}
 .titlebar{display:flex;align-items:center;gap:16px;justify-content:space-between}
 h1{font-size:20px;margin:0}
 .prtag{color:var(--muted);font-weight:400}
