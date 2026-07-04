@@ -39,6 +39,12 @@ render) once, then holds the result in memory and serves:
 
 - `GET /` — the rendered page + review JS.
 - `GET /api/state` — `{ headSha, pending[], submitted[], stale[], draft }`.
+- `GET /api/debug` — read-only session dump for an external MCP server / bug-report
+  triage: `{ version, repo, pr, headSha, model, plan, rawPlan, coverage, review{draft,pending,submitted} }`.
+  `rawPlan` is the model's output *before* normalize/reconcile (null when unavailable),
+  so triage can tell an LLM mistake from a pipeline one. Add `?verbose=1` to also
+  include the (large) block index. Introspection only — it scrapes nothing from the
+  rendered HTML and mutates no state.
 - `POST /api/comments` — add `{ path, side, line, startLine?, startSide?, body }` → assigns
   an id, snapshots the anchored line text(s), returns the comment.
 - `PATCH /api/comments/{id}` — edit body / re-place a stale comment.

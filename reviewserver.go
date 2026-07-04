@@ -20,6 +20,9 @@ type reviewServer struct {
 	mu       sync.Mutex
 	state    *ReviewState
 	index    Index
+	plan     ReadingPlan     // the reconciled reading plan this session is serving
+	rawPlan  json.RawMessage // the plan's raw bytes, pre normalize/reconcile (nil in tests)
+	model    string          // model that produced the plan ("" when loaded from --plan)
 	repo     string
 	pr       int
 	anchors  map[string]bool                      // valid (path,side,line) comment positions
@@ -27,7 +30,7 @@ type reviewServer struct {
 	submitFn func(payload []byte) (string, error) // posts the review; gh by default
 }
 
-func newReviewServer(repo string, pr int, headSha string, index Index) (*reviewServer, error) {
+func newReviewServer(repo string, pr int, headSha string, index Index, plan ReadingPlan, rawPlan json.RawMessage, model string) (*reviewServer, error) {
 	st, err := loadState(repo, pr)
 	if err != nil {
 		return nil, err
@@ -43,6 +46,9 @@ func newReviewServer(repo string, pr int, headSha string, index Index) (*reviewS
 	rs := &reviewServer{
 		state:    st,
 		index:    index,
+		plan:     plan,
+		rawPlan:  rawPlan,
+		model:    model,
 		repo:     repo,
 		pr:       pr,
 		anchors:  buildAnchorSet(index),
@@ -89,6 +95,7 @@ func (rs *reviewServer) handler(html []byte) *http.ServeMux {
 	mux.HandleFunc("GET /review.js", asset("text/javascript", reviewJS))
 	mux.HandleFunc("GET /review.css", asset("text/css", reviewCSS))
 	mux.HandleFunc("GET /api/state", rs.handleState)
+	mux.HandleFunc("GET /api/debug", rs.handleDebug)
 	mux.HandleFunc("POST /api/comments", rs.handleAdd)
 	mux.HandleFunc("PATCH /api/comments/{id}", rs.handleEdit)
 	mux.HandleFunc("DELETE /api/comments/{id}", rs.handleDelete)
@@ -119,6 +126,37 @@ func (rs *reviewServer) handleState(w http.ResponseWriter, r *http.Request) {
 		"pending":   nonNilComments(rs.state.Pending),
 		"submitted": rs.state.Submitted,
 	})
+}
+
+// handleDebug dumps the full in-memory session state — the reconciled reading
+// plan, the raw pre-reconcile plan the model produced, the coverage report, and
+// the review-comment queue — for an external MCP server or bug-report triage to
+// introspect without scraping the rendered HTML. rawPlan lets triage see what the
+// model returned before normalize/reconcile touched it (null when unavailable).
+// The block index (large: full rendered diff lines) is included only with
+// ?verbose=1, so the default payload stays small and MCP-friendly. Read-only.
+func (rs *reviewServer) handleDebug(w http.ResponseWriter, r *http.Request) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	out := map[string]any{
+		"version":  versionString(),
+		"repo":     rs.repo,
+		"pr":       rs.pr,
+		"headSha":  rs.state.HeadSha,
+		"model":    rs.model,
+		"plan":     rs.plan,
+		"rawPlan":  rs.rawPlan,
+		"coverage": rs.plan.Coverage,
+		"review": map[string]any{
+			"draft":     rs.state.Draft,
+			"pending":   nonNilComments(rs.state.Pending),
+			"submitted": rs.state.Submitted,
+		},
+	}
+	if r.URL.Query().Get("verbose") == "1" {
+		out["index"] = rs.index
+	}
+	writeJSONResp(w, 200, out)
 }
 
 func (rs *reviewServer) handleAdd(w http.ResponseWriter, r *http.Request) {
