@@ -1,5 +1,18 @@
 # TODO
 
+## Print Claude cost per reviewed PR
+
+Whenever the plan step calls the API, report the estimated spend for that PR — e.g.
+`plan: 57.9k in / 11.2k out (cache: 1.1k write, 0 read) — ~$0.34 (claude-sonnet-4-6)`.
+
+- Capture `usage` from the Messages response (`input_tokens`, `output_tokens`,
+  `cache_creation_input_tokens`, `cache_read_input_tokens`) in `runModel`/`parseModelResponse`.
+- Small per-model price table ($/Mtok in, out; cache write ×1.25, cache read ×0.1). Mark it
+  approximate and easy to update.
+- On a **cache hit** (no API call), print `$0.00 (cached)`.
+- Show it in the CLI log at minimum; consider surfacing it in the served page header too.
+- Consider a session/running total if a run makes multiple calls (not today, but leave room).
+
 ## Single-binary Go CLI (for distribution)
 
 Per [docs/adr-001-go-cli.md](adr-001-go-cli.md): public single-binary CLI in Go (chroma for
