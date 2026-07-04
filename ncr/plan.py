@@ -12,7 +12,16 @@ import os
 import re
 from pathlib import Path
 
-PROMPTS = Path(__file__).resolve().parents[1] / "prompts"
+def _prompts_dir() -> Path:
+    here = Path(__file__).resolve()
+    # installed (ncr/prompts via force-include) or from source (repo-root prompts/)
+    for cand in (here.parent / "prompts", here.parents[1] / "prompts"):
+        if cand.is_dir():
+            return cand
+    return here.parents[1] / "prompts"
+
+
+PROMPTS = _prompts_dir()
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
 

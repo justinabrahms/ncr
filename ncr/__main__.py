@@ -1,7 +1,7 @@
 """Narrative code review CLI.
 
-    python -m ncr <pr-number> [--repo owner/name] [-o out/review.html] [--open]
-    python -m ncr --diff path/to.diff [--plan plan.json]   # local, no GitHub
+    ncr <owner/repo> <pr>  [-o out/review.html] [--no-open]
+    ncr --diff path/to.diff [--plan plan.json]        # local, no GitHub
 
 Pipeline: ingest -> index -> plan (LLM) -> reconcile -> render.
 The --plan flag skips the LLM and renders a supplied plan (useful for iterating
@@ -22,11 +22,12 @@ from ncr.render import build_html
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="ncr", description="Narrative, outside-in code review.")
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("pr", nargs="?", type=int, help="GitHub PR number")
-    src.add_argument("--diff", help="path to a unified diff (skip GitHub)")
-    ap.add_argument("--repo", help="owner/name (default: current repo)")
+    ap = argparse.ArgumentParser(
+        prog="ncr", description="Narrative, outside-in code review.",
+        usage="ncr <owner/repo> <pr>  |  ncr --diff FILE [--plan FILE]")
+    ap.add_argument("repo", nargs="?", help="GitHub repo as owner/name")
+    ap.add_argument("pr", nargs="?", type=int, help="pull request number")
+    ap.add_argument("--diff", help="path to a unified diff (local mode, skip GitHub)")
     ap.add_argument("--plan", help="path to a reading-plan.json (skip the LLM)")
     ap.add_argument("--model", help="Anthropic model id")
     ap.add_argument("-o", "--out", default="out/review.html", help="output HTML path")
@@ -37,8 +38,10 @@ def main(argv=None) -> int:
         diff = Path(args.diff).read_text()
         meta, files, comments = {"title": Path(args.diff).name}, {}, []
     else:
+        if not args.repo or args.pr is None:
+            ap.error("give a repo and PR, e.g. `ncr owner/name 812` (or use --diff)")
         from ncr.ingest import get_pr_context
-        print(f"› fetching PR #{args.pr} via gh …", file=sys.stderr)
+        print(f"› fetching {args.repo}#{args.pr} via gh …", file=sys.stderr)
         ctx = get_pr_context(args.pr, repo=args.repo)
         diff, meta, files, comments = ctx["diff"], ctx["meta"], ctx["files"], ctx["comments"]
 

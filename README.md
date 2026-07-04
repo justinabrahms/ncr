@@ -40,13 +40,17 @@ later (see `docs/design.md`).
 
 ## Usage
 
+With [uv](https://docs.astral.sh/uv/) (auto-manages the venv + deps):
+
 ```sh
 # From a GitHub PR (uses your `gh` auth; needs ANTHROPIC_API_KEY for the plan step)
-python -m ncr 812 --repo owner/name
+uv run ncr owner/name 812
 
 # Local, no GitHub / no API — render a diff with a supplied reading plan
-python -m ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
+uv run ncr --diff tests/fixtures/sample.diff --plan tests/fixtures/sample-plan.json
 ```
+
+(Equivalent without uv: `pip install -e .` then `ncr …`, or `python -m ncr …`.)
 
 Pipeline: **ingest (`gh`) → index (deterministic) → plan (LLM) → reconcile
 (deterministic) → render → `out/review.html`** (opens in your browser). The core
