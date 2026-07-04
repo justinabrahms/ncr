@@ -82,8 +82,10 @@ def _diff_html(text: str, language: str = "", path: str = "") -> str:
     for prefix, code in zip(prefixes, hl):
         cls = {"+": "add", "-": "del"}.get(prefix, "ctx")
         mark = prefix if prefix in "+-" else " "
-        rows.append(f'<span class="l {cls}"><span class="gutter">{mark}</span>{code}</span>')
-    return '<pre class="diff">' + "\n".join(rows) + "</pre>"
+        rows.append(f'<span class="l {cls}"><span class="gutter">{mark}</span>{code or " "}</span>')
+    # NB: join with "" — each .l is display:block; a literal "\n" inside <pre>
+    # would render as an extra blank line between every row.
+    return '<pre class="diff">' + "".join(rows) + "</pre>"
 
 
 def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) -> str:

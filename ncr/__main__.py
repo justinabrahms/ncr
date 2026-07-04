@@ -83,6 +83,9 @@ def main(argv=None) -> int:
         else:
             print("› using cached plan — no API call", file=sys.stderr)
 
+    from ncr.normalize import normalize_plan
+    plan = normalize_plan(plan, index)
+
     comment_blocks = []
     if comments:
         from ncr.ingest import anchor_comments
