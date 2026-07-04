@@ -133,8 +133,9 @@ def _node_html(unit: dict, blocks_by_id: dict, edges: list, unit_symbols: dict) 
     <span class="one">{_esc(unit.get('summary', ''))}</span>
   </summary>
   <div class="body">
-    <div class="meta">{_esc(unit.get('file',''))} · {blocks_tag} · {_esc(unit.get('layerReason',''))}</div>
+    <div class="sumfull">{_esc(unit.get('summary', ''))}</div>
     {detail}
+    <div class="meta">{_esc(unit.get('file',''))} · {blocks_tag} · {_esc(unit.get('layerReason',''))}</div>
     {calls_html}
     {diff}
   </div>
@@ -236,8 +237,9 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .sym{font-size:13px;background:var(--bg);padding:1px 6px;border-radius:4px}
 .one{color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .body{padding:12px 14px}
-.meta{font-size:12px;color:var(--muted);margin-bottom:8px}
-.detail{color:#475569;margin-bottom:10px}
+.sumfull{color:var(--fg);margin-bottom:8px}
+.meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.detail{color:#475569;margin-bottom:8px}
 .calls{font-size:13px;color:var(--muted);margin-bottom:8px}
 .calls a{color:#2563eb;text-decoration:none}
 .ext{color:#94a3b8}
