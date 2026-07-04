@@ -7,8 +7,9 @@ CLI, written in Go (chroma for highlighting, GoReleaser for distribution). **Seq
 NOT port yet** — keep iterating on prompts/HTML-UX/schema in Python (the fast harness), then
 port once they stabilize. Port surface + rationale are in the ADR.
 
-- [ ] (optional, de-risk) thin Go skeleton: `reading-plan.json` → HTML, to prove chroma +
-      `html/template` parity with the Python renderer.
+- [x] (optional, de-risk) thin Go skeleton: `reading-plan.json` → HTML, proving chroma +
+      `html/template` parity with the Python renderer. Done — see `go/` (verified on #1985:
+      same chapters/nodes, matching token classes, context + markdown all render).
 - [ ] full port once prompts/UX freeze; carry `prompts/`, `docs/schema.md`, HTML template
       (`go:embed`) verbatim; port the ~700 lines of tested logic + their tests.
 - [ ] `.goreleaser.yaml` + Homebrew tap at first release.

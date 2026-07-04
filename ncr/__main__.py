@@ -101,6 +101,7 @@ def main(argv=None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(build_html(plan, index))
     (out.parent / "reading-plan.json").write_text(json.dumps(plan, indent=2))
+    (out.parent / "block-index.json").write_text(json.dumps(index, indent=2))
     print(f"› wrote {out}", file=sys.stderr)
     if not args.no_open:
         webbrowser.open(out.resolve().as_uri())
