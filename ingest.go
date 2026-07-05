@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -14,6 +15,11 @@ import (
 // ncr/ingest.py. Read-only. See docs/ingest.md.
 
 const maxFileBytes = 200_000
+
+// largePRFiles is the changed-file count above which we note that file context
+// is large. It matches the REST API's per-page size, the boundary at which the
+// old `gh pr view --json files` query silently truncated the list.
+const largePRFiles = 100
 
 func gh(args ...string) (string, error) {
 	cmd := exec.Command("gh", args...)
@@ -72,14 +78,61 @@ func getPRContext(pr int, repo string, fetchFiles bool) (PRContext, error) {
 
 	ctx.Files = map[string]string{}
 	if fetchFiles {
-		for _, f := range ctx.Meta.Files {
-			if f.Path == "" {
+		// Page the full changed-file list via the REST API. `gh pr view --json
+		// files` (used above for Meta) is backed by a GraphQL connection that
+		// caps at 100, silently truncating file context on large PRs (#13).
+		paths, err := getPRFiles(repo, pr)
+		if err != nil {
+			return ctx, err
+		}
+		if len(paths) >= largePRFiles {
+			logf("large PR: fetching context for %d changed files", len(paths))
+		} else {
+			logf("fetching context for %d changed files", len(paths))
+		}
+		for _, p := range paths {
+			if p == "" {
 				continue
 			}
-			ctx.Files[f.Path] = fetchFile(repo, f.Path, ctx.Meta.HeadRefOid)
+			ctx.Files[p] = fetchFile(repo, p, ctx.Meta.HeadRefOid)
 		}
 	}
 	return ctx, nil
+}
+
+// getPRFiles returns every changed file path for a PR, paging past the REST
+// API's 100-per-page limit via `gh api --paginate`.
+func getPRFiles(repo string, pr int) ([]string, error) {
+	out, err := gh("api", fmt.Sprintf("repos/%s/pulls/%d/files", repo, pr), "--paginate")
+	if err != nil {
+		return nil, err
+	}
+	return parsePRFiles(out)
+}
+
+// parsePRFiles parses the output of `gh api .../files --paginate`. With
+// multiple pages, gh concatenates one JSON array per page (…][…]), so we stream
+// successive top-level arrays rather than a single Unmarshal.
+func parsePRFiles(out string) ([]string, error) {
+	dec := json.NewDecoder(strings.NewReader(out))
+	var paths []string
+	for {
+		var page []struct {
+			Filename string `json:"filename"`
+		}
+		if err := dec.Decode(&page); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		for _, f := range page {
+			if f.Filename != "" {
+				paths = append(paths, f.Filename)
+			}
+		}
+	}
+	return paths, nil
 }
 
 func fetchFile(repo, path, ref string) string {
