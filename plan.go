@@ -73,6 +73,19 @@ var (
 	jsonFenceRe   = regexp.MustCompile("(?s)```(?:json)?\\s*\\n(.*?)```")
 )
 
+// resolveMaxTokens picks the model's max_tokens ceiling: an explicit --max-tokens
+// flag (>0) wins, then NCR_MAX_TOKENS, then defaultMaxToks. Non-positive or
+// unparseable values are ignored so a bad env var can't silently zero the budget.
+func resolveMaxTokens(flagVal int, envVal string) int {
+	if flagVal > 0 {
+		return flagVal
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(envVal)); err == nil && n > 0 {
+		return n
+	}
+	return defaultMaxToks
+}
+
 func readPrompt(name string) string {
 	b, err := promptsFS.ReadFile("prompts/" + name)
 	if err != nil {
@@ -329,7 +342,7 @@ func parseModelResponse(body []byte, maxTokens int) ([]byte, Usage, error) {
 		return nil, Usage{}, err
 	}
 	if parsed.StopReason == "max_tokens" {
-		return nil, parsed.Usage, fmt.Errorf("model response hit max_tokens (%d) — the plan was truncated; raise the token budget", maxTokens)
+		return nil, parsed.Usage, fmt.Errorf("model response hit max_tokens (%d) — the plan was truncated; raise the ceiling with --max-tokens (or NCR_MAX_TOKENS)", maxTokens)
 	}
 	for _, c := range parsed.Content {
 		if c.Type == "tool_use" && len(c.Input) > 0 {

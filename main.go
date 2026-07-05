@@ -61,6 +61,7 @@ func run(argv []string) int {
 	diff := fs.String("diff", "", "path to a unified diff (local mode, skip GitHub)")
 	plan := fs.String("plan", "", "path to a reading-plan.json (skip the LLM)")
 	model := fs.String("model", "", "Anthropic model id")
+	maxTokens := fs.Int("max-tokens", 0, "model max_tokens ceiling (overrides NCR_MAX_TOKENS; default 32000)")
 	out := fs.String("o", "out/review.html", "output HTML path (with --static)")
 	fs.StringVar(out, "out", "out/review.html", "output HTML path (with --static)")
 	static := fs.Bool("static", false, "write the HTML file and exit instead of serving")
@@ -164,7 +165,7 @@ func run(argv []string) int {
 				return 2
 			}
 			logf("asking %s to organize the reading path (spends API credits) …", mdl)
-			b, usage, err := runModel(system, user, mdl, defaultMaxToks, planTool(index))
+			b, usage, err := runModel(system, user, mdl, resolveMaxTokens(*maxTokens, os.Getenv("NCR_MAX_TOKENS")), planTool(index))
 			if err != nil {
 				return fail(err)
 			}
@@ -257,7 +258,7 @@ func ingestCached(repo string, pr int, refresh bool) (PRContext, error) {
 // reorderArgs separates flags from positionals so positionals may appear anywhere
 // (stdlib flag stops at the first non-flag arg; argparse-style intermixing does not).
 func reorderArgs(args []string) (flags, pos []string) {
-	valueFlags := map[string]bool{"--diff": true, "--plan": true, "--model": true, "-o": true, "--out": true, "-diff": true, "-plan": true, "-model": true}
+	valueFlags := map[string]bool{"--diff": true, "--plan": true, "--model": true, "-o": true, "--out": true, "-diff": true, "-plan": true, "-model": true, "--max-tokens": true, "-max-tokens": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if strings.HasPrefix(a, "-") && a != "-" {

@@ -206,6 +206,28 @@ func TestRetryDelayHonorsRetryAfterSeconds(t *testing.T) {
 	}
 }
 
+func TestResolveMaxTokensPrecedence(t *testing.T) {
+	cases := []struct {
+		name    string
+		flagVal int
+		envVal  string
+		want    int
+	}{
+		{"default when unset", 0, "", defaultMaxToks},
+		{"env overrides default", 0, "64000", 64000},
+		{"flag overrides env", 100000, "64000", 100000},
+		{"flag overrides default", 50000, "", 50000},
+		{"bad env falls back to default", 0, "lots", defaultMaxToks},
+		{"non-positive env ignored", 0, "0", defaultMaxToks},
+		{"whitespace env trimmed", 0, "  48000 ", 48000},
+	}
+	for _, c := range cases {
+		if got := resolveMaxTokens(c.flagVal, c.envVal); got != c.want {
+			t.Errorf("%s: resolveMaxTokens(%d, %q) = %d, want %d", c.name, c.flagVal, c.envVal, got, c.want)
+		}
+	}
+}
+
 func TestPlanToolCarriesBlockEnum(t *testing.T) {
 	raw, err := json.Marshal(planTool(Index{BlockIDs: []string{"b001", "b002"}}))
 	if err != nil || !json.Valid(raw) {
