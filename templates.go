@@ -65,6 +65,8 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .detail{color:#c9d1d9}
 .calls a{color:#58a6ff}
 .ext{color:#6e7681}
+#toc a.active{background:#1f2a44;color:#a5b4fc}
+.node.read .mark{background:#0f2e1a;border-color:#238636;color:#56d364}
 }
 /* --- reading affordances (issue #18): sticky TOC, mark-read, keyboard nav --- */
 #toc{position:fixed;top:0;left:0;bottom:0;width:250px;overflow-y:auto;background:var(--card);border-right:1px solid var(--line);padding:18px 14px;z-index:30;transform:translateX(-100%);transition:transform .16s ease}
