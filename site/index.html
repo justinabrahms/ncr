@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order placement endpoint — narrative review</title>
+<style>:root{--fg:#1e293b;--muted:#64748b;--bg:#f8fafc;--card:#fff;--line:#e2e8f0}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--fg);background:var(--bg)}
+header{padding:24px 32px;background:var(--card);border-bottom:1px solid var(--line)}
+.titlebar{display:flex;align-items:center;gap:16px;justify-content:space-between}
+h1{font-size:20px;margin:0}
+.prtag{color:var(--muted);font-weight:400}
+.overview{max-width:70ch;color:#334155;margin:10px 0 0}
+.controls{margin-top:12px}
+.controls button{font-size:13px;padding:4px 10px;margin-right:8px;border:1px solid var(--line);background:var(--bg);border-radius:6px;cursor:pointer}
+.cov{font-size:13px;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.cov-ok{background:#dcfce7;color:#166534}
+.cov-bad{background:#fee2e2;color:#991b1b}
+main{max-width:960px;margin:0 auto;padding:24px 32px}
+.chapter{margin:0 0 28px}
+.chapter h2{font-size:16px;margin:0 0 4px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+.orphan h2{color:var(--muted)}
+.chsum{color:var(--muted);margin:0 0 12px}
+.node{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0;overflow:hidden}
+.node summary{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none}
+.node summary::-webkit-details-marker{display:none}
+.node[open] summary{border-bottom:1px solid var(--line);background:#fbfcfe}
+.badge{color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.sym{font-size:13px;background:var(--bg);padding:1px 6px;border-radius:4px}
+.one{color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.body{padding:12px 14px}
+.sumfull{color:var(--fg);margin-bottom:8px}
+.sumfull code,.detail code,.chsum code,.overview code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef2f7;color:#0f172a;padding:1px 5px;border-radius:4px}
+.sumfull p,.detail p,.overview p{margin:0 0 8px}
+.meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.detail{color:#475569;margin-bottom:8px}
+.calls{font-size:13px;color:var(--muted);margin-bottom:8px}
+.calls a{color:#2563eb;text-decoration:none}
+.ext{color:#94a3b8}
+.diff{margin:0;padding:8px 0;background:#272822;border-radius:6px;overflow-x:auto;color:#f8f8f2;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.diff .l{display:block;white-space:pre;padding-right:10px}
+.diff .gutter{display:inline-block;width:1.6em;text-align:center;color:#75715e;user-select:none}
+.diff .add{background:rgba(74,222,128,.14)}
+.diff .add .gutter{color:#4ade80}
+.diff .del{background:rgba(248,113,113,.14)}
+.diff .del .gutter{color:#f87171}
+.diff .ctx{opacity:.62}
+.diff .sep{color:#75715e;user-select:none}
+.diffwrap{position:relative}
+.wstoggle{position:absolute;top:6px;right:10px;z-index:1;font:11px ui-monospace,monospace;padding:2px 8px;border-radius:6px;border:1px solid #3a3f36;background:#1e2019;color:#c9d1d9;cursor:pointer;opacity:.55}
+.wstoggle:hover{opacity:1}
+.diff.ws-hide .l.wsn{display:none}
+/* Background */ .bg { color: #f8f8f2; background-color: #272822; }
+/* PreWrapper */ .chroma { color: #f8f8f2; background-color: #272822; -webkit-text-size-adjust: none; }
+/* Error */ .chroma .err { color: #960050; background-color: #1e0010 }
+/* LineLink */ .chroma .lnlinks { outline: none; text-decoration: none; color: inherit }
+/* LineTableTD */ .chroma .lntd { vertical-align: top; padding: 0; margin: 0; border: 0; }
+/* LineTable */ .chroma .lntable { border-spacing: 0; padding: 0; margin: 0; border: 0; }
+/* LineHighlight */ .chroma .hl { background-color: #3c3d38 }
+/* LineNumbersTable */ .chroma .lnt { white-space: pre; -webkit-user-select: none; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #7f7f7f }
+/* LineNumbers */ .chroma .ln { white-space: pre; -webkit-user-select: none; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #7f7f7f }
+/* Line */ .chroma .line { display: flex; }
+/* Keyword */ .chroma .k { color: #66d9ef }
+/* KeywordConstant */ .chroma .kc { color: #66d9ef }
+/* KeywordDeclaration */ .chroma .kd { color: #66d9ef }
+/* KeywordNamespace */ .chroma .kn { color: #f92672 }
+/* KeywordPseudo */ .chroma .kp { color: #66d9ef }
+/* KeywordReserved */ .chroma .kr { color: #66d9ef }
+/* KeywordType */ .chroma .kt { color: #66d9ef }
+/* NameAttribute */ .chroma .na { color: #a6e22e }
+/* NameClass */ .chroma .nc { color: #a6e22e }
+/* NameConstant */ .chroma .no { color: #66d9ef }
+/* NameDecorator */ .chroma .nd { color: #a6e22e }
+/* NameException */ .chroma .ne { color: #a6e22e }
+/* NameOther */ .chroma .nx { color: #a6e22e }
+/* NameTag */ .chroma .nt { color: #f92672 }
+/* NameFunction */ .chroma .nf { color: #a6e22e }
+/* NameFunctionMagic */ .chroma .fm { color: #a6e22e }
+/* Literal */ .chroma .l { color: #ae81ff }
+/* LiteralDate */ .chroma .ld { color: #e6db74 }
+/* LiteralString */ .chroma .s { color: #e6db74 }
+/* LiteralStringAffix */ .chroma .sa { color: #e6db74 }
+/* LiteralStringBacktick */ .chroma .sb { color: #e6db74 }
+/* LiteralStringChar */ .chroma .sc { color: #e6db74 }
+/* LiteralStringDelimiter */ .chroma .dl { color: #e6db74 }
+/* LiteralStringDoc */ .chroma .sd { color: #e6db74 }
+/* LiteralStringDouble */ .chroma .s2 { color: #e6db74 }
+/* LiteralStringEscape */ .chroma .se { color: #ae81ff }
+/* LiteralStringHeredoc */ .chroma .sh { color: #e6db74 }
+/* LiteralStringInterpol */ .chroma .si { color: #e6db74 }
+/* LiteralStringOther */ .chroma .sx { color: #e6db74 }
+/* LiteralStringRegex */ .chroma .sr { color: #e6db74 }
+/* LiteralStringSingle */ .chroma .s1 { color: #e6db74 }
+/* LiteralStringSymbol */ .chroma .ss { color: #e6db74 }
+/* LiteralNumber */ .chroma .m { color: #ae81ff }
+/* LiteralNumberBin */ .chroma .mb { color: #ae81ff }
+/* LiteralNumberFloat */ .chroma .mf { color: #ae81ff }
+/* LiteralNumberHex */ .chroma .mh { color: #ae81ff }
+/* LiteralNumberInteger */ .chroma .mi { color: #ae81ff }
+/* LiteralNumberIntegerLong */ .chroma .il { color: #ae81ff }
+/* LiteralNumberOct */ .chroma .mo { color: #ae81ff }
+/* Operator */ .chroma .o { color: #f92672 }
+/* OperatorWord */ .chroma .ow { color: #f92672 }
+/* OperatorReserved */ .chroma .or { color: #f92672 }
+/* Comment */ .chroma .c { color: #75715e }
+/* CommentHashbang */ .chroma .ch { color: #75715e }
+/* CommentMultiline */ .chroma .cm { color: #75715e }
+/* CommentSingle */ .chroma .c1 { color: #75715e }
+/* CommentSpecial */ .chroma .cs { color: #75715e }
+/* CommentPreproc */ .chroma .cp { color: #75715e }
+/* CommentPreprocFile */ .chroma .cpf { color: #75715e }
+/* GenericDeleted */ .chroma .gd { color: #f92672 }
+/* GenericEmph */ .chroma .ge { font-style: italic }
+/* GenericInserted */ .chroma .gi { color: #a6e22e }
+/* GenericStrong */ .chroma .gs { font-weight: bold }
+/* GenericSubheading */ .chroma .gu { color: #75715e }
+</style></head>
+<body>
+<header>
+  <div class="titlebar">
+    <h1>Order placement endpoint<span class="prtag"> · #812</span></h1>
+    <span class="cov cov-ok">6/6 blocks placed ✓</span>
+  </div>
+  <p class="overview">Adds a POST /orders endpoint. Read the API contract first, then the handler that decodes the payload, the service that builds and stores the order, and finally the new orders table. Suggested path: Contract → POST /orders → Storage.</p>
+  <div class="controls">
+    <button id="xall">Expand all</button>
+    <button id="call">Collapse all</button>
+  </div>
+</header>
+<main>
+
+<section class="chapter">
+  <h2>Contract — POST /orders</h2>
+  <p class="chsum">New endpoint added to the OpenAPI spec: accepts an Order JSON body, returns 201.</p>
+  
+<details id="u1" class="node">
+  <summary>
+    <span class="badge" style="background:#6b46c1">0 Contract</span>
+    <code class="sym">paths./orders.post</code>
+    <span class="one">Declares POST /orders accepting an Order body, returning 201.</span>
+  </summary>
+  <div class="body">
+    <div class="sumfull">Declares POST /orders accepting an Order body, returning 201.</div>
+    <div class="detail">The contract the rest of this change implements; read it first.</div>
+    <div class="meta">api/openapi.yaml · b001 · public API route &#43; request/response schema</div>
+    
+    <div class="diffwrap"><pre class="chroma diff"><span class="l ctx" data-path="api/openapi.yaml" data-side="RIGHT" data-line="10" data-text="  /health:"><span class="gutter"> </span><span class="w">  </span><span class="nt">/health</span><span class="p">:</span></span><span class="l ctx" data-path="api/openapi.yaml" data-side="RIGHT" data-line="11" data-text="    get:"><span class="gutter"> </span><span class="w">    </span><span class="nt">get</span><span class="p">:</span></span><span class="l ctx" data-path="api/openapi.yaml" data-side="RIGHT" data-line="12" data-text="      responses: { &#39;200&#39;: { description: ok } }"><span class="gutter"> </span><span class="w">      </span><span class="nt">responses</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">&#39;200&#39;</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l">ok } }</span></span><span class="l add" data-path="api/openapi.yaml" data-side="RIGHT" data-line="13" data-text="  /orders:"><span class="gutter">+</span><span class="w">  </span><span class="nt">/orders</span><span class="p">:</span></span><span class="l add" data-path="api/openapi.yaml" data-side="RIGHT" data-line="14" data-text="    post:"><span class="gutter">+</span><span class="w">    </span><span class="nt">post</span><span class="p">:</span></span><span class="l add" data-path="api/openapi.yaml" data-side="RIGHT" data-line="15" data-text="      requestBody:"><span class="gutter">+</span><span class="w">      </span><span class="nt">requestBody</span><span class="p">:</span></span><span class="l add" data-path="api/openapi.yaml" data-side="RIGHT" data-line="16" data-text="        content: { application/json: { schema: { $ref: &#39;#/Order&#39; } } }"><span class="gutter">+</span><span class="w">        </span><span class="nt">content</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">application/json</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">schema</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s1">&#39;#/Order&#39;</span><span class="w"> </span>}<span class="w"> </span>}<span class="w"> </span>}</span><span class="l add" data-path="api/openapi.yaml" data-side="RIGHT" data-line="17" data-text="      responses: { &#39;201&#39;: { description: created } }"><span class="gutter">+</span><span class="w">      </span><span class="nt">responses</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">&#39;201&#39;</span><span class="p">:</span><span class="w"> </span>{<span class="w"> </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l">created } }</span></span></pre></div>
+  </div>
+</details>
+</section>
+<section class="chapter">
+  <h2>POST /orders — place an order</h2>
+  <p class="chsum">Handler decodes the payload and delegates to the service, which builds a domain Order and inserts it.</p>
+  
+<details id="u2" class="node">
+  <summary>
+    <span class="badge" style="background:#2563eb">1 Entrypoint</span>
+    <code class="sym">OrderHandler.Place</code>
+    <span class="one">Decodes PlaceOrderRequest and calls the order service, returning the new id.</span>
+  </summary>
+  <div class="body">
+    <div class="sumfull">Decodes PlaceOrderRequest and calls the order service, returning the new id.</div>
+    <div class="detail">Entry point for the order flow: decodes the JSON body, delegates to Service.Place, and writes back the new id.</div>
+    <div class="meta">internal/order/handler.go · b002 · HTTP handler receiving the request</div>
+    <div class="calls">calls: <a href="#u3">Service.Place</a></div>
+    <div class="diffwrap"><pre class="chroma diff"><span class="l ctx" data-path="internal/order/handler.go" data-side="RIGHT" data-line="20" data-text="	w.WriteHeader(200)"><span class="gutter"> </span><span class="w">	</span><span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span></span><span class="l ctx" data-path="internal/order/handler.go" data-side="RIGHT" data-line="21" data-text="}"><span class="gutter"> </span><span class="p">}</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="22" data-text=""><span class="gutter">+</span> </span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="23" data-text="func (h *OrderHandler) Place(w http.ResponseWriter, r *http.Request) {"><span class="gutter">+</span><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">h</span><span class="w"> </span><span class="o">*</span><span class="nx">OrderHandler</span><span class="p">)</span><span class="w"> </span><span class="nf">Place</span><span class="p">(</span><span class="nx">w</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span><span class="w"> </span><span class="nx">r</span><span class="w"> </span><span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span><span class="w"> </span><span class="p">{</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="24" data-text="	var req PlaceOrderRequest"><span class="gutter">+</span><span class="w">	</span><span class="kd">var</span><span class="w"> </span><span class="nx">req</span><span class="w"> </span><span class="nx">PlaceOrderRequest</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="25" data-text="	if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil {"><span class="gutter">+</span><span class="w">	</span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">json</span><span class="p">.</span><span class="nf">NewDecoder</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">Body</span><span class="p">).</span><span class="nf">Decode</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">req</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="26" data-text="		http.Error(w, &#34;bad request&#34;, 400)"><span class="gutter">+</span><span class="w">		</span><span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;bad request&#34;</span><span class="p">,</span><span class="w"> </span><span class="mi">400</span><span class="p">)</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="27" data-text="		return"><span class="gutter">+</span><span class="w">		</span><span class="k">return</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="28" data-text="	}"><span class="gutter">+</span><span class="w">	</span><span class="p">}</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="29" data-text="	id, err := h.svc.Place(r.Context(), req)"><span class="gutter">+</span><span class="w">	</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">h</span><span class="p">.</span><span class="nx">svc</span><span class="p">.</span><span class="nf">Place</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nf">Context</span><span class="p">(),</span><span class="w"> </span><span class="nx">req</span><span class="p">)</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="30" data-text="	if err != nil {"><span class="gutter">+</span><span class="w">	</span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="31" data-text="		http.Error(w, err.Error(), 500)"><span class="gutter">+</span><span class="w">		</span><span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">(),</span><span class="w"> </span><span class="mi">500</span><span class="p">)</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="32" data-text="		return"><span class="gutter">+</span><span class="w">		</span><span class="k">return</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="33" data-text="	}"><span class="gutter">+</span><span class="w">	</span><span class="p">}</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="34" data-text="	json.NewEncoder(w).Encode(map[string]string{&#34;id&#34;: id})"><span class="gutter">+</span><span class="w">	</span><span class="nx">json</span><span class="p">.</span><span class="nf">NewEncoder</span><span class="p">(</span><span class="nx">w</span><span class="p">).</span><span class="nf">Encode</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;id&#34;</span><span class="p">:</span><span class="w"> </span><span class="nx">id</span><span class="p">})</span></span><span class="l add" data-path="internal/order/handler.go" data-side="RIGHT" data-line="35" data-text="}"><span class="gutter">+</span><span class="p">}</span></span></pre></div>
+  </div>
+</details>
+<details id="u3" class="node">
+  <summary>
+    <span class="badge" style="background:#0891b2">2 Application</span>
+    <code class="sym">Service.Place</code>
+    <span class="one">Builds a domain Order from the request items and inserts it via the repo.</span>
+  </summary>
+  <div class="body">
+    <div class="sumfull">Builds a domain Order from the request items and inserts it via the repo.</div>
+    <div class="detail">Called by the handler; constructs the domain Order and hands it to the repository to persist.</div>
+    <div class="meta">internal/order/service.go · b003 b004 b005 · orchestrates domain construction &#43; persistence</div>
+    <div class="calls">calls: <span class="ext">↳ into unchanged code</span></div>
+    <div class="diffwrap"><pre class="chroma diff"><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="1" data-text="package order"><span class="gutter">+</span><span class="kn">package</span><span class="w"> </span><span class="nx">order</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="2" data-text=""><span class="gutter">+</span> </span><span class="l sep"><span class="gutter">⋯</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="3" data-text="type Service struct{ repo *Repo }"><span class="gutter">+</span><span class="kd">type</span><span class="w"> </span><span class="nx">Service</span><span class="w"> </span><span class="kd">struct</span><span class="p">{</span><span class="w"> </span><span class="nx">repo</span><span class="w"> </span><span class="o">*</span><span class="nx">Repo</span><span class="w"> </span><span class="p">}</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="4" data-text=""><span class="gutter">+</span> </span><span class="l sep"><span class="gutter">⋯</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="5" data-text="func (s *Service) Place(ctx context.Context, req PlaceOrderRequest) (string, error) {"><span class="gutter">+</span><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="o">*</span><span class="nx">Service</span><span class="p">)</span><span class="w"> </span><span class="nf">Place</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">req</span><span class="w"> </span><span class="nx">PlaceOrderRequest</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="6" data-text="	o := NewOrder(req.Items)"><span class="gutter">+</span><span class="w">	</span><span class="nx">o</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nf">NewOrder</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">Items</span><span class="p">)</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="7" data-text="	return s.repo.Insert(ctx, o)"><span class="gutter">+</span><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">repo</span><span class="p">.</span><span class="nf">Insert</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">o</span><span class="p">)</span></span><span class="l add" data-path="internal/order/service.go" data-side="RIGHT" data-line="8" data-text="}"><span class="gutter">+</span><span class="p">}</span></span></pre></div>
+  </div>
+</details>
+</section>
+
+<section class="chapter orphan">
+  <h2>Orphans · Adapter</h2>
+  <p class="chsum">Changed here but not called by anything else in this diff.</p>
+  
+<details id="u4" class="node">
+  <summary>
+    <span class="badge" style="background:#d97706">4 Adapter</span>
+    <code class="sym">migrations/002_orders.sql</code>
+    <span class="one">Creates the orders table (id, total_cents).</span>
+  </summary>
+  <div class="body">
+    <div class="sumfull">Creates the orders table (id, total_cents).</div>
+    <div class="detail">The backing store the repository writes to.</div>
+    <div class="meta">migrations/002_orders.sql · b006 · schema migration for the orders table</div>
+    
+    <div class="diffwrap"><pre class="chroma diff"><span class="l add" data-path="migrations/002_orders.sql" data-side="RIGHT" data-line="1" data-text="CREATE TABLE orders ("><span class="gutter">+</span><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">orders</span><span class="w"> </span><span class="p">(</span></span><span class="l add" data-path="migrations/002_orders.sql" data-side="RIGHT" data-line="2" data-text="  id UUID PRIMARY KEY,"><span class="gutter">+</span><span class="w">  </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span></span><span class="l add" data-path="migrations/002_orders.sql" data-side="RIGHT" data-line="3" data-text="  total_cents INT NOT NULL"><span class="gutter">+</span><span class="w">  </span><span class="n">total_cents</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span></span><span class="l add" data-path="migrations/002_orders.sql" data-side="RIGHT" data-line="4" data-text=");"><span class="gutter">+</span><span class="p">);</span></span><span class="l ctx" data-path="migrations/002_orders.sql" data-side="RIGHT" data-line="5" data-text=""><span class="gutter"> </span> </span></pre></div>
+  </div>
+</details>
+</section>
+</main>
+<script>
+document.getElementById('xall').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=true})};
+document.getElementById('call').onclick=function(){document.querySelectorAll('details').forEach(function(d){d.open=false})};
+document.querySelectorAll('.wstoggle').forEach(function(btn){btn.onclick=function(){
+  var pre=btn.parentElement.querySelector('pre.diff');
+  var hidden=pre.classList.toggle('ws-hide');
+  btn.textContent=hidden?'show whitespace':'hide whitespace';
+}});
+</script>
+
+</body></html>
+
+
+
