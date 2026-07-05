@@ -25,7 +25,13 @@ Follow these principles:
 
 1. **Outside-in.** Order by architectural layer. The reader should never meet a dependency
    before its consumer: contract → entrypoint → application → domain → adapter →
-   cross-cutting → tests.
+   cross-cutting → tests. **Never open the plan with a data-model, schema, or migration
+   chapter** — "start with the data model that defines what an X is" is the classic
+   inside-out failure. A store, model, or migration appears only after a chapter containing
+   its first consumer. When a PR has several entry directions (say a machine-facing API and
+   a human-facing web view), pick the primary capability's entrypoint as the spine and place
+   the other entry as a later chapter — do not resolve the ambiguity by leading with the
+   shared data model.
 
 {{include: _shared/layers.md}}
 
@@ -96,8 +102,9 @@ Emit a single JSON object matching `docs/schema.md` → `ReadingPlan`. Requireme
 - **Coverage:** every block id in the index must appear in exactly one unit's `blocks`.
 - `edges[]`: caller→callee among units; set `resolved:false` when the target isn't in the
   diff.
-- `chapters[]`: ordered by outermost layer; nodes within a chapter ordered by `depth`
-  (call distance from the chapter root).
+- `chapters[]`: ordered by outermost layer — the sequence of chapter outermost (lowest)
+  layers must never decrease; break ties by call order. Nodes within a chapter ordered by
+  `depth` (call distance from the chapter root).
 - `orphans[]`: changed units with no in-diff caller, grouped by layer.
 - `overview`: 2–4 sentences a reviewer reads first — what the PR does and the suggested
   reading path through the chapters.
