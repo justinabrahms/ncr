@@ -40,6 +40,8 @@ main{padding:36px 0 8px}
 }
 .repo{font-size:13px;color:var(--muted)}
 .card h2{font-size:16px;line-height:1.35;margin:0}
+.card h2 a{text-decoration:none}
+.card h2 a:hover{text-decoration:underline}
 .card h2 code{font-size:14px}
 .stats{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pain,.relief{margin:0;font-size:14px}
@@ -82,7 +84,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
         <span class="lang lang-ts">TypeScript</span>
         <span class="repo">supabase/supabase</span>
       </div>
-      <h2>feat(studio): add feature to rewrite queries</h2>
+      <h2><a href="supabase-query-rewrite.html">feat(studio): add feature to rewrite queries</a></h2>
       <div class="stats">15 files · +986 −229 · merged PR #47266</div>
       <p class="pain">GitHub's alphabetical file list opens on a test file, and the Logs Explorer
       page — where this feature actually lives — is the 14th of 15 files. You read the tests
@@ -91,7 +93,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
       into key discovery and the page that wires it all together.</p>
       <div class="ctas">
         <a class="cta" href="supabase-query-rewrite.html">Read it as a story →</a>
-        <a class="gh" href="https://github.com/supabase/supabase/pull/47266">view on GitHub</a>
+        <a class="gh" href="https://github.com/supabase/supabase/pull/47266">view the original</a>
       </div>
     </li>
 
@@ -100,7 +102,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
         <span class="lang lang-py">Python</span>
         <span class="repo">simonw/datasette</span>
       </div>
-      <h2>Add column types system, refs #2664</h2>
+      <h2><a href="datasette-column-types.html">Add column types system, refs #2664</a></h2>
       <div class="stats">14 files · +1367 −55 · merged PR #2667</div>
       <p class="pain">GitHub opens on datasette/app.py — 108 lines of internal registry wiring —
       and you read the abstraction, its implementations, and the schema before ever seeing where
@@ -110,7 +112,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
       test file folded into one closing chapter.</p>
       <div class="ctas">
         <a class="cta" href="datasette-column-types.html">Read it as a story →</a>
-        <a class="gh" href="https://github.com/simonw/datasette/pull/2667">view on GitHub</a>
+        <a class="gh" href="https://github.com/simonw/datasette/pull/2667">view the original</a>
       </div>
     </li>
 
@@ -119,7 +121,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
         <span class="lang lang-go">Go</span>
         <span class="repo">go-gitea/gitea</span>
       </div>
-      <h2>feat(actions): add job summaries (GITHUB_STEP_SUMMARY)</h2>
+      <h2><a href="gitea-job-summaries.html">feat(actions): add job summaries (GITHUB_STEP_SUMMARY)</a></h2>
       <div class="stats">18 files · +683 −23 · merged PR #37500</div>
       <p class="pain">GitHub opens on the 207-line storage model, then two DB migration files and
       a locale string — all before any code that uses them. The runner-upload endpoint where a
@@ -129,7 +131,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
       arrive only after you have met every one of their consumers.</p>
       <div class="ctas">
         <a class="cta" href="gitea-job-summaries.html">Read it as a story →</a>
-        <a class="gh" href="https://github.com/go-gitea/gitea/pull/37500">view on GitHub</a>
+        <a class="gh" href="https://github.com/go-gitea/gitea/pull/37500">view the original</a>
       </div>
     </li>
 
@@ -138,7 +140,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
         <span class="lang lang-java">Java</span>
         <span class="repo">keycloak/keycloak</span>
       </div>
-      <h2>[OID4VCI] Support for credentials CRUD (DB and admin REST endpoints)</h2>
+      <h2><a href="keycloak-oid4vci-crud.html">[OID4VCI] Support for credentials CRUD (DB and admin REST endpoints)</a></h2>
       <div class="stats">18 files · +843 −0 · merged PR #48668</div>
       <p class="pain">GitHub shows a DTO first, then the JPA entity, the Liquibase migration, and
       persistence.xml (files 5–8) — the database, bottom-up — before the admin REST endpoint that
@@ -148,7 +150,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
       then tests.</p>
       <div class="ctas">
         <a class="cta" href="keycloak-oid4vci-crud.html">Read it as a story →</a>
-        <a class="gh" href="https://github.com/keycloak/keycloak/pull/48668">view on GitHub</a>
+        <a class="gh" href="https://github.com/keycloak/keycloak/pull/48668">view the original</a>
       </div>
     </li>
 
@@ -157,7 +159,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
         <span class="lang lang-rust">Rust</span>
         <span class="repo">astral-sh/uv</span>
       </div>
-      <h2>Add <code>uv check</code> to run <code>ty</code> from uv</h2>
+      <h2><a href="uv-check-command.html">Add <code>uv check</code> to run <code>ty</code> from uv</a></h2>
       <div class="stats">13 files · +1154 −3 · merged PR #19605</div>
       <p class="pain">Crate-name sorting puts uv-bin-install — the bottom-layer machinery that
       downloads the ty binary — on page one, before you learn a new <code>uv check</code> command
@@ -166,7 +168,7 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
       core check() pipeline, and only then the binary-download adapter it rests on.</p>
       <div class="ctas">
         <a class="cta" href="uv-check-command.html">Read it as a story →</a>
-        <a class="gh" href="https://github.com/astral-sh/uv/pull/19605">view on GitHub</a>
+        <a class="gh" href="https://github.com/astral-sh/uv/pull/19605">view the original</a>
       </div>
     </li>
 
