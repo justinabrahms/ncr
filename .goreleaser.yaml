@@ -56,7 +56,7 @@ brews:
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/justinabrahms/ncr"
-    description: "Read a pull request outside-in, following call paths — not alphabetical."
+    description: "Turn a PR into a story you read outside-in — call-path chapters, explained, instead of alphabetical files."
     license: MIT
     commit_author:
       name: goreleaser-bot

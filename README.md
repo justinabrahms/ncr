@@ -1,7 +1,7 @@
 # ncr — narrative code review
 
-**Read a pull request in the order that builds understanding — outside-in, following call
-paths — instead of alphabetical-by-filename.**
+**Turn a PR into a story you read outside-in — call-path chapters, explained, instead of
+alphabetical files.**
 
 [![CI](https://github.com/justinabrahms/ncr/actions/workflows/ci.yml/badge.svg)](https://github.com/justinabrahms/ncr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
