@@ -121,6 +121,14 @@ func run(argv []string) int {
 	index := buildIndex(diffText)
 	logf("indexed %d change blocks", len(index.BlockIDs))
 
+	// Nothing to review: short-circuit before touching the cache or calling
+	// the model, so an empty diff (e.g. --diff /dev/null) doesn't spend API
+	// credits organizing zero blocks.
+	if len(index.Blocks) == 0 {
+		fmt.Fprintln(os.Stderr, "no changes to review")
+		return 0
+	}
+
 	var raw rawPlan
 	var planModel string            // model that produced the plan; "" when loaded from --plan
 	var rawPlanJSON json.RawMessage // the plan's raw bytes, pre normalize/reconcile (for /api/debug)
