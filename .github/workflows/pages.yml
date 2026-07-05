@@ -1,9 +1,10 @@
 name: Pages
 
-# Publishes a self-contained sample narrative review to GitHub Pages so people
-# can experience ncr's output without installing anything. The sample is
-# regenerated from the checked-in fixtures on every push to main (and on
-# release tags) so the live demo never goes stale.
+# Publishes the demo gallery to GitHub Pages: a hand-written landing page plus
+# one ncr render per demos/<slug>/. Every render is rebuilt from the frozen
+# artifacts (ingest.json + plan.json) on each push to main, so renderer
+# improvements propagate to the live demos with no API key and no gh calls —
+# the build is fully offline and deterministic.
 #
 # NOTE: This requires Pages to be enabled with the "GitHub Actions" source
 # under Settings -> Pages.
@@ -36,16 +37,28 @@ jobs:
         with:
           go-version: stable
           cache: true
-      - name: Render the sample review
+      - name: Build ncr
+        run: go build -o ncr .
+      - name: Render each demo from its frozen artifacts
+        # ncr exits non-zero in --diff mode when coverage is incomplete, which
+        # fails the deploy — a demo must never ship with dropped hunks. The
+        # renderer also drops reading-plan.json/block-index.json debug files
+        # next to -o; those must not deploy.
         run: |
-          mkdir -p site
-          go run . \
-            --diff tests/fixtures/sample.diff \
-            --plan tests/fixtures/sample-plan.json \
-            -o site/index.html
+          mkdir -p _site
+          for dir in demos/*/; do
+            slug=$(basename "$dir")
+            python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["diff"])' \
+              "$dir/ingest.json" "/tmp/$slug.diff"
+            ./ncr --diff "/tmp/$slug.diff" --plan "$dir/plan.json" --no-open -o "_site/$slug.html"
+            python3 site/inject-banner.py "_site/$slug.html" "$dir/meta.yaml"
+          done
+          rm -f _site/reading-plan.json _site/block-index.json
+      - name: Add the landing page
+        run: cp site/index.html _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
