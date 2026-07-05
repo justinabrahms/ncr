@@ -165,7 +165,9 @@ func run(argv []string) int {
 				return 2
 			}
 			logf("asking %s to organize the reading path (spends API credits) …", mdl)
+			sp := startSpinner(os.Stderr, isTerminal(os.Stderr), "organizing the reading path")
 			b, usage, err := runModel(system, user, mdl, resolveMaxTokens(*maxTokens, os.Getenv("NCR_MAX_TOKENS")), planTool(index))
+			sp.Stop()
 			if err != nil {
 				return fail(err)
 			}
