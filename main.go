@@ -17,6 +17,7 @@ import (
 //
 //	ncr <owner/repo> <pr>            # build the review and serve it on localhost
 //	ncr <owner/repo> <pr> --static  # write the HTML file and exit (no server)
+//	ncr .  [--base main]            # self-review the current branch vs merge-base (served, no commenting)
 //	ncr --diff path/to.diff [--plan plan.json]   # local render (implies --static)
 //
 // Pipeline: ingest -> index -> plan (LLM) -> normalize -> reconcile -> render.
@@ -59,6 +60,7 @@ func versionString() string {
 func run(argv []string) int {
 	fs := flag.NewFlagSet("ncr", flag.ContinueOnError)
 	diff := fs.String("diff", "", "path to a unified diff (local mode, skip GitHub)")
+	base := fs.String("base", "main", "base ref to diff against for local review (`ncr .`)")
 	plan := fs.String("plan", "", "path to a reading-plan.json (skip the LLM)")
 	model := fs.String("model", "", "Anthropic model id")
 	out := fs.String("o", "out/review.html", "output HTML path (with --static)")
@@ -69,7 +71,7 @@ func run(argv []string) int {
 	noSpend := fs.Bool("no-spend", false, "never call the API; fail loudly on a plan cache miss")
 	showVersion := fs.Bool("version", false, "print version and exit")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: ncr <owner/repo> <pr>  |  ncr --diff FILE [--plan FILE]")
+		fmt.Fprintln(os.Stderr, "usage: ncr <owner/repo> <pr>  |  ncr .  |  ncr --diff FILE [--plan FILE]")
 		fs.PrintDefaults()
 	}
 	flags, pos := reorderArgs(argv)
@@ -85,13 +87,19 @@ func run(argv []string) int {
 		return 2
 	}
 
+	// `ncr .` is a bare "." positional: self-review the current branch against
+	// its merge-base with --base, served with the commenting UI disabled.
+	local := len(pos) == 1 && pos[0] == "."
+
 	var repo string
 	var pr int
-	if len(pos) > 0 {
-		repo = pos[0]
-	}
-	if len(pos) > 1 {
-		pr, _ = strconv.Atoi(pos[1])
+	if !local {
+		if len(pos) > 0 {
+			repo = pos[0]
+		}
+		if len(pos) > 1 {
+			pr, _ = strconv.Atoi(pos[1])
+		}
 	}
 
 	var diffText string
@@ -106,6 +114,13 @@ func run(argv []string) int {
 		}
 		diffText = string(b)
 		meta = Meta{Title: filepath.Base(*diff)}
+	} else if local {
+		logf("diffing current branch against %s (merge-base) …", *base)
+		ctx, err := getLocalContext(*base)
+		if err != nil {
+			return fail(err)
+		}
+		diffText, meta, files, comments = ctx.Diff, ctx.Meta, ctx.Files, ctx.Comments
 	} else {
 		if repo == "" || pr == 0 {
 			fmt.Fprintln(os.Stderr, "error: give a repo and PR, e.g. `ncr owner/name 812` (or use --diff)")
@@ -187,7 +202,9 @@ func run(argv []string) int {
 	}
 	logf("coverage: %d/%d blocks — %s", cov.Counts.Placed, cov.Counts.Indexed, status)
 
-	interactive := !(*static || *diff != "")
+	// Local self-review is served but has no PR to post to, so the commenting UI
+	// (which drives the GitHub review-submit flow) stays off.
+	interactive := !(*static || *diff != "" || local)
 	html, err := BuildHTML(rplan, index, interactive)
 	if err != nil {
 		return fail(err)
@@ -249,7 +266,7 @@ func ingestCached(repo string, pr int, refresh bool) (PRContext, error) {
 // reorderArgs separates flags from positionals so positionals may appear anywhere
 // (stdlib flag stops at the first non-flag arg; argparse-style intermixing does not).
 func reorderArgs(args []string) (flags, pos []string) {
-	valueFlags := map[string]bool{"--diff": true, "--plan": true, "--model": true, "-o": true, "--out": true, "-diff": true, "-plan": true, "-model": true}
+	valueFlags := map[string]bool{"--diff": true, "--plan": true, "--model": true, "-o": true, "--out": true, "--base": true, "-diff": true, "-plan": true, "-model": true, "-base": true}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if strings.HasPrefix(a, "-") && a != "-" {
