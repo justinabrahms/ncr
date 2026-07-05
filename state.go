@@ -22,6 +22,7 @@ type ReviewComment struct {
 	LineText  string `json:"lineText"` // snapshot of the end line, for re-anchoring (phase 5)
 	Body      string `json:"body"`
 	CreatedAt string `json:"createdAt"`
+	Stale     bool   `json:"stale,omitempty"` // re-anchor couldn't relocate it → "needs re-placing" tray
 }
 
 type SubmittedRound struct {

@@ -35,13 +35,21 @@ func newReviewServer(repo string, pr int, headSha string, index Index, plan Read
 	if err != nil {
 		return nil, err
 	}
-	if st.HeadSha != "" && headSha != "" && st.HeadSha != headSha {
-		// Phase 5 will re-anchor the pending queue; for now note it and move on.
-		logf("note: PR head changed since last session (%s → %s); re-anchoring lands in a later phase",
-			shortSha(st.HeadSha), shortSha(headSha))
+	headChanged := st.HeadSha != "" && headSha != "" && st.HeadSha != headSha
+	if headChanged {
+		// The PR moved under us: relocate each pending comment to its new line
+		// by its snapshotted LineText; flag the ones we can't place (phase 5).
+		moved, stale := reanchorPending(st, index)
+		logf("note: PR head changed since last session (%s → %s); re-anchored %d pending comment(s), %d need re-placing",
+			shortSha(st.HeadSha), shortSha(headSha), moved, stale)
 	}
 	if headSha != "" {
 		st.HeadSha = headSha
+	}
+	if headChanged {
+		if err := saveState(st); err != nil {
+			return nil, err
+		}
 	}
 	rs := &reviewServer{
 		state:    st,
@@ -84,6 +92,65 @@ func buildAnchorSet(index Index) map[string]bool {
 		}
 	}
 	return set
+}
+
+func lineTextKey(path, side, text string) string {
+	return path + "\x00" + side + "\x00" + text
+}
+
+// buildLineTextIndex maps each rendered line's (path, side, text) to the file
+// line numbers where it appears in the current diff — the inverse of the anchor
+// set, used to relocate a pending comment by its snapshotted LineText.
+func buildLineTextIndex(index Index) map[string][]int {
+	seen := map[string]map[int]bool{}
+	for _, b := range index.Blocks {
+		for _, l := range b.Lines {
+			side, no := "RIGHT", l.NewNo
+			if l.Kind == "del" {
+				side, no = "LEFT", l.OldNo
+			}
+			k := lineTextKey(b.Path, side, strip(l.Text))
+			if seen[k] == nil {
+				seen[k] = map[int]bool{}
+			}
+			seen[k][no] = true
+		}
+	}
+	out := map[string][]int{}
+	for k, nums := range seen {
+		for n := range nums {
+			out[k] = append(out[k], n)
+		}
+	}
+	return out
+}
+
+// reanchorPending relocates each pending comment after the PR head moved: it
+// finds the comment's snapshotted LineText in the new diff on the same side. An
+// exactly-one match follows the move (line updated, ranges shifted by the same
+// delta); zero or multiple matches (or a missing snapshot) are flagged Stale so
+// submit surfaces them in the "needs re-placing" tray instead of failing
+// opaquely at the API call. Submitted rounds are untouched. Returns counts for
+// the startup log.
+func reanchorPending(st *ReviewState, index Index) (moved, stale int) {
+	lookup := buildLineTextIndex(index)
+	for i := range st.Pending {
+		c := &st.Pending[i]
+		matches := lookup[lineTextKey(c.Path, c.Side, c.LineText)]
+		if c.LineText != "" && len(matches) == 1 {
+			newLine := matches[0]
+			if c.StartLine > 0 {
+				c.StartLine += newLine - c.Line // keep the range span across the move
+			}
+			c.Line = newLine
+			c.Stale = false
+			moved++
+			continue
+		}
+		c.Stale = true
+		stale++
+	}
+	return moved, stale
 }
 
 func (rs *reviewServer) handler(html []byte) *http.ServeMux {
@@ -290,7 +357,7 @@ func (rs *reviewServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 // errors. GitHub rejects the whole review if one comment is invalid, so we block.
 func (rs *reviewServer) validate(verdict, body string) (invalid []string, errs []string) {
 	for _, c := range rs.state.Pending {
-		if rs.anchorError(c) != "" {
+		if c.Stale || rs.anchorError(c) != "" {
 			invalid = append(invalid, c.ID)
 		}
 	}

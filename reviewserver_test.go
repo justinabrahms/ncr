@@ -173,6 +173,84 @@ func TestSubmitEmptyBlockedButApproveOK(t *testing.T) {
 	}
 }
 
+func TestReanchorPendingOnHeadChange(t *testing.T) {
+	t.Setenv("NCR_STATE_DIR", t.TempDir())
+
+	// A new head where "moved := doThing()" now lives further down the file.
+	newDiff := `diff --git a/f.go b/f.go
+index 1111111..2222222 100644
+--- a/f.go
++++ b/f.go
+@@ -1,2 +1,5 @@
+ alpha
+ beta
++gamma
++moved := doThing()
++delta
+`
+	idx := buildIndex(newDiff)
+	var wantLine int
+	for _, b := range idx.Blocks {
+		for _, l := range b.Lines {
+			if strip(l.Text) == "moved := doThing()" {
+				wantLine = l.NewNo
+			}
+		}
+	}
+	if wantLine == 0 {
+		t.Fatal("fixture: moved line not found in new diff")
+	}
+
+	// Seed a persisted queue anchored to the OLD head: c1's line moved, c2's
+	// text no longer exists anywhere in the diff.
+	old := &ReviewState{
+		Repo: "owner/repo", PR: 7, HeadSha: "oldsha", Seq: 2,
+		Pending: []ReviewComment{
+			{ID: "c1", Path: "f.go", Side: "RIGHT", Line: 999, LineText: "moved := doThing()", Body: "here"},
+			{ID: "c2", Path: "f.go", Side: "RIGHT", Line: 3, LineText: "text that vanished", Body: "gone"},
+		},
+	}
+	if err := saveState(old); err != nil {
+		t.Fatal(err)
+	}
+
+	rs, err := newReviewServer("owner/repo", 7, "newsha", idx, ReadingPlan{}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// c1 followed the move by its LineText; not stale.
+	if c1 := rs.state.Pending[0]; c1.ID != "c1" || c1.Line != wantLine || c1.Stale {
+		t.Fatalf("c1 not re-anchored: %+v (want line %d)", c1, wantLine)
+	}
+	// c2 is flagged, not silently dropped.
+	if c2 := rs.state.Pending[1]; c2.ID != "c2" || !c2.Stale {
+		t.Fatalf("c2 should be flagged stale, got %+v", c2)
+	}
+
+	// Re-anchoring + new head are persisted for a later restart.
+	loaded, _ := loadState("owner/repo", 7)
+	if loaded.HeadSha != "newsha" || len(loaded.Pending) != 2 ||
+		loaded.Pending[0].Line != wantLine || loaded.Pending[0].Stale || !loaded.Pending[1].Stale {
+		t.Fatalf("re-anchor not persisted: %+v", loaded)
+	}
+
+	// The stale comment surfaces as a submit blocker rather than failing opaquely.
+	invalid, _ := rs.validate("COMMENT", "body")
+	staleBlocked := false
+	for _, id := range invalid {
+		if id == "c2" {
+			staleBlocked = true
+		}
+		if id == "c1" {
+			t.Fatalf("re-anchored c1 should not block submit")
+		}
+	}
+	if !staleBlocked {
+		t.Fatalf("stale c2 should block submit, invalid=%v", invalid)
+	}
+}
+
 func TestDebugDumpsPlanCoverageAndReview(t *testing.T) {
 	t.Setenv("NCR_STATE_DIR", t.TempDir())
 	idx := buildIndex(sampleDiff(t))
