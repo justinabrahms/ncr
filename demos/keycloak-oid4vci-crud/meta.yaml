@@ -1,0 +1,21 @@
+slug: keycloak-oid4vci-crud
+repo: keycloak/keycloak
+pr: 48668
+url: https://github.com/keycloak/keycloak/pull/48668
+title: "[OID4VCI] Support for credentials CRUD (DB and admin REST endpoints)"
+language: Java
+license: Apache-2.0
+merged: 2026-05-05
+stats: "18 files · +843 −0"
+pain: >-
+  GitHub shows a DTO first, then the JPA entity, the Liquibase migration, and
+  persistence.xml (files 5–8) — the database, bottom-up — before the admin REST
+  endpoint that motivates them at file 14 of 18, scattered across five Maven
+  modules.
+relief: >-
+  ncr reads it as an enterprise feature should be read: REST contract, admin
+  endpoint, SPI/model layer, then JPA persistence and the migration, then cache
+  pass-through, then tests.
+notice: >-
+  The Liquibase migration appears only after you have met the endpoint and SPI
+  contract it serves.

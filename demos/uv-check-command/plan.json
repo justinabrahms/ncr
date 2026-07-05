@@ -1,0 +1,402 @@
+{
+  "title": "Add `uv check` to run `ty` from uv",
+  "prNumber": 19605,
+  "overview": "This PR adds `uv check`, a new subcommand that downloads and runs `ty` (Astral's Python type checker) against the current project. The implementation follows the same pattern as `uv format`/`uv audit`: discover the project, optionally sync the environment, fetch the binary from GitHub/Astral mirror, then exec it. Read outside-in: CLI contract → settings resolution → command dispatch → core implementation → binary download support → preview feature flag → tests.",
+  "chapters": [
+    {
+      "id": "",
+      "title": "uv check — CLI contract and user-facing args",
+      "summary": "The new `ProjectCommand::Check(CheckArgs)` variant and its full `CheckArgs` struct define what users can pass to `uv check`.",
+      "nodes": [
+        {
+          "unit": "u-c0-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "uv check — settings resolution (CLI → typed struct)",
+      "summary": "CheckSettings resolves the raw Clap args into a typed, normalized struct that the command handler consumes.",
+      "nodes": [
+        {
+          "unit": "u-c1-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "uv check — command dispatch in run_project",
+      "summary": "The match arm in run_project wires CheckSettings into the check() command call.",
+      "nodes": [
+        {
+          "unit": "u-c2-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "uv check — core command implementation",
+      "summary": "The async check() function: project discovery, optional env sync, ty download, and exec.",
+      "nodes": [
+        {
+          "unit": "u-c3-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Binary download support for ty (uv-bin-install)",
+      "summary": "Teaches the uv-bin-install crate about the ty binary: URL patterns, default version constraints, and mirror support.",
+      "nodes": [
+        {
+          "unit": "u-c4-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "PreviewFeature::Check — feature flag gate",
+      "summary": "Registers 'check' as a named preview feature so the experimental warning can be suppressed with --preview-features check.",
+      "nodes": [
+        {
+          "unit": "u-c5-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Test infrastructure and integration tests for uv check",
+      "summary": "TestContext::check() helper and the full integration test suite covering the main scenarios.",
+      "nodes": [
+        {
+          "unit": "u-c6-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-4",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-5",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-6",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-7",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-8",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-9",
+          "depth": 0
+        }
+      ]
+    }
+  ],
+  "orphans": null,
+  "units": [
+    {
+      "id": "u-c0-0",
+      "file": "crates/uv-cli/src/lib.rs",
+      "symbol": "ProjectCommand::Check",
+      "layer": 0,
+      "layerReason": "Outermost public contract — the Clap subcommand declaration",
+      "summary": "Registers `check` as a project-level subcommand with the `uv help check` after-help link.",
+      "blocks": [
+        "b012"
+      ]
+    },
+    {
+      "id": "u-c0-1",
+      "file": "crates/uv-cli/src/lib.rs",
+      "symbol": "CheckArgs",
+      "layer": 0,
+      "layerReason": "CLI argument struct — the full user-visible API surface",
+      "summary": "Full set of flags: extras/groups for env sync, --locked/--frozen/--no-sync, --python, --version (ty version), --extra-args (pass-through to ty), --no-project, --show-version. Mirrors the shape of `FormatArgs` but adds sync-related flags since check needs a live environment.",
+      "blocks": [
+        "b013"
+      ]
+    },
+    {
+      "id": "u-c1-0",
+      "file": "crates/uv/src/settings.rs",
+      "symbol": "CheckSettings",
+      "layer": 1,
+      "layerReason": "Settings layer — translates CLI flags into resolved, conflict-checked values",
+      "summary": "Introduces `CheckSettings` and its `resolve()` impl. Handles flag conflicts (locked vs frozen), dev/no-dev pair resolution, and propagates install mirrors and malware settings — the same resolution pattern used by sync/run.",
+      "blocks": [
+        "b029",
+        "b030",
+        "b031"
+      ]
+    },
+    {
+      "id": "u-c2-0",
+      "file": "crates/uv/src/lib.rs",
+      "symbol": "ProjectCommand::Check dispatch",
+      "layer": 2,
+      "layerReason": "Entrypoint dispatch — bridges CLI to the async command function",
+      "summary": "Resolves settings, checks refresh/offline conflicts, initialises the cache with combined refresh, then calls commands::check with all resolved arguments. Passes client_builder.subcommand([\"check\"]) so network attribution is correct.",
+      "blocks": [
+        "b028"
+      ]
+    },
+    {
+      "id": "u-c2-1",
+      "file": "crates/uv/src/commands/mod.rs",
+      "symbol": "mod / pub(crate) use exports",
+      "layer": 2,
+      "layerReason": "Module plumbing that makes the new check module visible",
+      "summary": "Declares and re-exports the check module so the dispatch arm can call commands::check.",
+      "blocks": [
+        "b019",
+        "b027"
+      ]
+    },
+    {
+      "id": "u-c3-0",
+      "file": "crates/uv/src/commands/project/check.rs",
+      "symbol": "check()",
+      "layer": 3,
+      "layerReason": "Application logic — the actual implementation of the capability",
+      "summary": "Implements the full check pipeline in one function: (1) warn if not in preview mode; (2) discover project or fall back to cwd; (3) warn when project-only flags are used without a project; (4) if a project was found, get-or-init the virtual env and run lock+sync (same path as `uv run`); (5) resolve ty version from BinVersion enum (default constraints \u003e=0.0,\u003c0.1, pinned, latest, or constraint); (6) download and cache ty via bin_install; (7) spawn `ty check` in the project root with VIRTUAL_ENV set, forwarding extra_args. The venv path is passed as VIRTUAL_ENV so ty can find installed stubs.",
+      "blocks": [
+        "b020",
+        "b021",
+        "b022",
+        "b023",
+        "b024",
+        "b025",
+        "b026"
+      ]
+    },
+    {
+      "id": "u-c4-0",
+      "file": "crates/uv-bin-install/src/lib.rs",
+      "symbol": "Binary::Ty — enum variant and constants",
+      "layer": 4,
+      "layerReason": "Adapter/infrastructure — binary download plumbing",
+      "summary": "Adds the `Ty` variant to the `Binary` enum, its name (\"ty\"), default constraints (\u003e=0.0,\u003c0.1), and the two URL constants TY_GITHUB_URL_PREFIX and TY_MIRROR_SUFFIX. The default constraint range mirrors how Ruff is pinned: a narrow range that allows patch updates without a uv release.",
+      "blocks": [
+        "b001",
+        "b002",
+        "b003",
+        "b006",
+        "b007"
+      ]
+    },
+    {
+      "id": "u-c4-1",
+      "file": "crates/uv-bin-install/src/lib.rs",
+      "symbol": "download_urls / mirror_urls for Ty",
+      "layer": 4,
+      "layerReason": "Adapter — URL generation logic for ty artifacts",
+      "summary": "Implements the same mirror-first, GitHub-fallback URL pattern that Ruff uses, but pointed at astral-sh/ty releases.",
+      "blocks": [
+        "b004",
+        "b005"
+      ]
+    },
+    {
+      "id": "u-c4-2",
+      "file": "crates/uv-bin-install/src/lib.rs",
+      "symbol": "uv-bin-install tests for ty",
+      "layer": 6,
+      "layerReason": "Tests for the binary download layer",
+      "summary": "Unit tests for ty download URL generation (custom mirror, default mirror + GitHub fallback) and for mirror URL rewriting, matching the existing test coverage for Ruff.",
+      "blocks": [
+        "b008",
+        "b009",
+        "b010",
+        "b011"
+      ]
+    },
+    {
+      "id": "u-c5-0",
+      "file": "crates/uv-preview/src/lib.rs",
+      "symbol": "PreviewFeature::Check",
+      "layer": 5,
+      "layerReason": "Cross-cutting — preview gating infrastructure",
+      "summary": "Adds Check = 1 \u003c\u003c 33 to the PreviewFeature bitflag enum, maps it to the string \"check\" in as_str/FromStr, and tests the round-trip. Without this flag the command still works but prints an experimental warning.",
+      "blocks": [
+        "b014",
+        "b015",
+        "b016",
+        "b017"
+      ]
+    },
+    {
+      "id": "u-c6-0",
+      "file": "crates/uv-test/src/lib.rs",
+      "symbol": "TestContext::check",
+      "layer": 6,
+      "layerReason": "Test helper — shared test setup",
+      "summary": "Adds context.check() mirroring context.format(): sets UV_EXCLUDE_NEWER to a future date so ty versions are resolvable in tests.",
+      "blocks": [
+        "b018"
+      ]
+    },
+    {
+      "id": "u-c6-1",
+      "file": "crates/uv/tests/it/main.rs",
+      "symbol": "mod check in main.rs",
+      "layer": 6,
+      "layerReason": "Test registration",
+      "summary": "Gates the check test module behind #[cfg(feature = \"test-python\")], matching the level of the audit tests.",
+      "blocks": [
+        "b047"
+      ]
+    },
+    {
+      "id": "u-c6-2",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_project",
+      "layer": 6,
+      "layerReason": "Integration test — happy path",
+      "summary": "Basic success case: project with pyproject.toml, valid Python code, expects exit 0 and the experimental warning.",
+      "blocks": [
+        "b032",
+        "b033",
+        "b034"
+      ]
+    },
+    {
+      "id": "u-c6-3",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_missing_pyproject_toml",
+      "layer": 6,
+      "layerReason": "Integration test — no-project fallback",
+      "summary": "Verifies that check still runs (against cwd) when no pyproject.toml exists, and that project-only flags (--group, --frozen, --no-sync) are warned about and ignored.",
+      "blocks": [
+        "b035"
+      ]
+    },
+    {
+      "id": "u-c6-4",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_no_project",
+      "layer": 6,
+      "layerReason": "Integration test — --no-project flag",
+      "summary": "Tests that --no-project skips project discovery even when a pyproject.toml is present with an unsatisfiable Python requirement, and that project-only flags generate warnings.",
+      "blocks": [
+        "b036"
+      ]
+    },
+    {
+      "id": "u-c6-5",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_type_error",
+      "layer": 6,
+      "layerReason": "Integration test — ty diagnostic output",
+      "summary": "Verifies that ty's actual error output (invalid-assignment) is surfaced with exit code 1, confirming end-to-end integration with ty.",
+      "blocks": [
+        "b037"
+      ]
+    },
+    {
+      "id": "u-c6-6",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_with_declared_dependency",
+      "layer": 6,
+      "layerReason": "Integration test — env sync + ty resolution",
+      "summary": "Tests that uv syncs the declared dependency (iniconfig) into the venv and that ty resolves the import through VIRTUAL_ENV. Gated behind test-pypi.",
+      "blocks": [
+        "b038"
+      ]
+    },
+    {
+      "id": "u-c6-7",
+      "file": "crates/uv/tests/it/check.rs",
+      "symbol": "check_with_undeclared_dependency",
+      "layer": 6,
+      "layerReason": "Integration test — ty unresolved-import diagnostic",
+      "summary": "Verifies that an undeclared import produces a ty unresolved-import diagnostic, confirming the venv is correctly passed and ty inspects it.",
+      "blocks": [
+        "b039"
+      ]
+    },
+    {
+      "id": "u-c6-8",
+      "file": "crates/uv/tests/it/help.rs",
+      "symbol": "help snapshot updates",
+      "layer": 6,
+      "layerReason": "Snapshot test updates for CLI help text",
+      "summary": "Snapshot updates adding 'check  Type check the project' to all help output variants.",
+      "blocks": [
+        "b040",
+        "b041",
+        "b042",
+        "b043",
+        "b044",
+        "b045",
+        "b046"
+      ]
+    },
+    {
+      "id": "u-c6-9",
+      "file": "crates/uv/tests/it/show_settings.rs",
+      "symbol": "show_settings preview_features snapshot",
+      "layer": 6,
+      "layerReason": "Snapshot test for preview feature enumeration",
+      "summary": "Adds Check to the preview features list in the show_settings snapshot.",
+      "blocks": [
+        "b048",
+        "b049"
+      ]
+    }
+  ],
+  "edges": [],
+  "coverage": {
+    "ok": true,
+    "counts": {
+      "indexed": 49,
+      "placed": 49
+    },
+    "missing": [],
+    "duplicated": [],
+    "unplacedUnits": [],
+    "danglingRefs": [],
+    "commentGaps": [],
+    "repaired": false
+  }
+}

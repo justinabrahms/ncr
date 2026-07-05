@@ -1,0 +1,374 @@
+{
+  "title": "[OID4VCI] Support for credentials CRUD (DB and admin REST endpoints)",
+  "prNumber": 48668,
+  "overview": "This PR adds CRUD support for verifiable credentials (OID4VCI) on users: a new `USER_VER_CREDENTIAL` DB table, a `UserProvider` SPI extension, a new admin REST sub-resource mounted at `GET/POST/DELETE /users/{id}/vc/credentials`, and integration tests. Read outside-in: REST contract first, then the server-side endpoint, then the storage stack (UserProvider → JPA entity/queries), and finally tests.",
+  "chapters": [
+    {
+      "id": "",
+      "title": "REST contract: UserVerifiableCredentialRepresentation and client-side resource interface",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c0-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Admin REST entrypoint: wiring UserVerifiableCredentialResource into UserResource",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c1-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Model/SPI layer: UserVerifiableCredentialModel and UserProvider contract",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c2-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-3",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "JPA persistence: DB schema, entity, and JpaUserProvider implementation",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c3-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-3",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Cache and storage-manager pass-through",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c4-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Tests: CRUD, error paths, and permission coverage",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c5-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-2",
+          "depth": 0
+        }
+      ]
+    }
+  ],
+  "orphans": null,
+  "units": [
+    {
+      "id": "u-c0-0",
+      "file": "core/src/main/java/org/keycloak/representations/idm/oid4vc/UserVerifiableCredentialRepresentation.java",
+      "symbol": "UserVerifiableCredentialRepresentation",
+      "layer": 0,
+      "layerReason": "Outward-facing data contract; shared between client and server",
+      "summary": "New wire representation for a verifiable credential — holds credentialScopeName, revision, and createdDate",
+      "blocks": [
+        "b001",
+        "b002"
+      ]
+    },
+    {
+      "id": "u-c0-1",
+      "file": "integration/admin-client/src/main/java/org/keycloak/admin/client/resource/UserVerifiableCredentialResource.java",
+      "symbol": "UserVerifiableCredentialResource (admin-client interface)",
+      "layer": 0,
+      "layerReason": "Admin-client JAX-RS proxy interface, consumed by callers before any server code",
+      "summary": "New admin-client proxy interface exposing createCredential, getCredentials, and revokeCredential under path /vc/credentials; requires OID4VC_VCI feature and verifiable credentials enabled on the realm",
+      "blocks": [
+        "b004",
+        "b005",
+        "b006",
+        "b007",
+        "b008"
+      ]
+    },
+    {
+      "id": "u-c0-2",
+      "file": "integration/admin-client/src/main/java/org/keycloak/admin/client/resource/UserResource.java",
+      "symbol": "UserResource.verifiableCredentials() (admin-client)",
+      "layer": 0,
+      "layerReason": "Entry point on the existing admin-client UserResource interface",
+      "summary": "Adds the @Path(\"vc\") sub-resource accessor to the admin-client UserResource interface",
+      "blocks": [
+        "b003"
+      ]
+    },
+    {
+      "id": "u-c1-0",
+      "file": "services/src/main/java/org/keycloak/services/resources/admin/UserResource.java",
+      "symbol": "UserResource.verifiableCredentials() (server)",
+      "layer": 1,
+      "layerReason": "Server-side entrypoint that instantiates and delegates to the new sub-resource",
+      "summary": "Mounts the new UserVerifiableCredentialResource at @Path(\"vc\") on the existing admin UserResource",
+      "blocks": [
+        "b043",
+        "b044"
+      ]
+    },
+    {
+      "id": "u-c1-1",
+      "file": "services/src/main/java/org/keycloak/protocol/oid4vc/resources/admin/UserVerifiableCredentialResource.java",
+      "symbol": "UserVerifiableCredentialResource (server implementation)",
+      "layer": 1,
+      "layerReason": "The core application-layer handler for the new endpoints",
+      "summary": "Implements createCredential, getCredentials, and revokeCredential. createCredential validates that the named client scope exists and has the oid4vc protocol, then delegates to session.users(). All three methods guard on OID4VC_VCI feature flag and realm.isVerifiableCredentialsEnabled(). Auto-generates revision and createdDate if not supplied; rejects caller-supplied values to prevent clock skew / replay attacks.",
+      "blocks": [
+        "b037",
+        "b038",
+        "b039",
+        "b040",
+        "b041",
+        "b042"
+      ]
+    },
+    {
+      "id": "u-c2-0",
+      "file": "server-spi/src/main/java/org/keycloak/models/UserVerifiableCredentialModel.java",
+      "symbol": "UserVerifiableCredentialModel",
+      "layer": 2,
+      "layerReason": "Internal domain model; consumed by provider implementations",
+      "summary": "New model class carrying the same three fields as the representation; credentialScopeName is immutable (constructor-only)",
+      "blocks": [
+        "b035",
+        "b036"
+      ]
+    },
+    {
+      "id": "u-c2-1",
+      "file": "server-spi/src/main/java/org/keycloak/models/UserProvider.java",
+      "symbol": "UserProvider (SPI contract)",
+      "layer": 2,
+      "layerReason": "SPI interface extended with three new methods",
+      "summary": "Declares addVerifiableCredential, removeVerifiableCredential, and getVerifiableCredentialsByUser on UserProvider; Javadoc clarifies field-generation contract",
+      "blocks": [
+        "b034"
+      ]
+    },
+    {
+      "id": "u-c2-2",
+      "file": "server-spi-private/src/main/java/org/keycloak/models/utils/ModelToRepresentation.java",
+      "symbol": "ModelToRepresentation.toRepresentation(UserVerifiableCredentialModel)",
+      "layer": 2,
+      "layerReason": "Model→wire conversion utility",
+      "summary": "Adds model-to-representation conversion",
+      "blocks": [
+        "b028",
+        "b029",
+        "b030"
+      ]
+    },
+    {
+      "id": "u-c2-3",
+      "file": "server-spi-private/src/main/java/org/keycloak/models/utils/RepresentationToModel.java",
+      "symbol": "RepresentationToModel.toModel(UserVerifiableCredentialRepresentation)",
+      "layer": 2,
+      "layerReason": "Wire→model conversion utility",
+      "summary": "Adds representation-to-model conversion",
+      "blocks": [
+        "b031",
+        "b032",
+        "b033"
+      ]
+    },
+    {
+      "id": "u-c3-0",
+      "file": "model/jpa/src/main/resources/META-INF/jpa-changelog-26.7.0.xml",
+      "symbol": "jpa-changelog-26.7.0.xml",
+      "layer": 3,
+      "layerReason": "Database migration; must be read before the entity to understand the table shape",
+      "summary": "Liquibase changeset creating USER_VER_CREDENTIAL table with PK, FK to USER_ENTITY, and unique constraint on (CREDENTIAL_SCOPE_NAME, USER_ID)",
+      "blocks": [
+        "b024"
+      ]
+    },
+    {
+      "id": "u-c3-1",
+      "file": "model/jpa/src/main/java/org/keycloak/models/jpa/entities/UserVerifiableCredentialEntity.java",
+      "symbol": "UserVerifiableCredentialEntity",
+      "layer": 3,
+      "layerReason": "JPA entity mapping the new table",
+      "summary": "JPA entity with four named queries: fetch-by-user, bulk-delete by user/realm/clientScope. The unique constraint mirrors the DB schema, enforcing one credential per scope per user.",
+      "blocks": [
+        "b019",
+        "b020",
+        "b021",
+        "b022",
+        "b023"
+      ]
+    },
+    {
+      "id": "u-c3-2",
+      "file": "model/jpa/src/main/resources/default-persistence.xml",
+      "symbol": "default-persistence.xml",
+      "layer": 3,
+      "layerReason": "Required registration of the new entity with the persistence unit",
+      "summary": "Registers UserVerifiableCredentialEntity in the default persistence unit",
+      "blocks": [
+        "b025"
+      ]
+    },
+    {
+      "id": "u-c3-3",
+      "file": "model/jpa/src/main/java/org/keycloak/models/jpa/JpaUserProvider.java",
+      "symbol": "JpaUserProvider (verifiable credential methods + preRemove cleanup)",
+      "layer": 3,
+      "layerReason": "Core JPA implementation of the new UserProvider methods",
+      "summary": "Implements add/remove/get for verifiable credentials. addVerifiableCredential auto-generates revision (SecretGenerator) and createdDate (Time.currentTimeMillis) when absent. preRemove hooks delete credentials when a user, realm, or client scope is removed — preventing orphans.",
+      "blocks": [
+        "b011",
+        "b012",
+        "b013",
+        "b014",
+        "b015",
+        "b016",
+        "b017",
+        "b018"
+      ]
+    },
+    {
+      "id": "u-c4-0",
+      "file": "model/infinispan/src/main/java/org/keycloak/models/cache/infinispan/UserCacheSession.java",
+      "symbol": "UserCacheSession (Infinispan)",
+      "layer": 4,
+      "layerReason": "Cache layer adapter; pass-through without caching for now",
+      "summary": "Forwards all three verifiable-credential methods directly to the delegate. No caching is added; noted as a follow-up.",
+      "blocks": [
+        "b009",
+        "b010"
+      ]
+    },
+    {
+      "id": "u-c4-1",
+      "file": "model/storage-private/src/main/java/org/keycloak/storage/UserStorageManager.java",
+      "symbol": "UserStorageManager",
+      "layer": 4,
+      "layerReason": "Storage manager adapter; routing layer between local and federated storage",
+      "summary": "Routes all three methods to localStorage() for local users; explicitly throws UnsupportedOperationException for federated users (acknowledged as a known limitation with follow-up planned)",
+      "blocks": [
+        "b026",
+        "b027"
+      ]
+    },
+    {
+      "id": "u-c5-0",
+      "file": "tests/utils/src/main/java/org/keycloak/tests/utils/admin/AdminEventPaths.java",
+      "symbol": "AdminEventPaths.userVerifiableCredential*",
+      "layer": 5,
+      "layerReason": "Test utility; needed to verify admin event paths in tests",
+      "summary": "Adds URI builder helpers for the two new admin event resource paths",
+      "blocks": [
+        "b055",
+        "b056"
+      ]
+    },
+    {
+      "id": "u-c5-1",
+      "file": "tests/base/src/test/java/org/keycloak/tests/admin/user/UserVerifiableCredentialsTest.java",
+      "symbol": "UserVerifiableCredentialsTest",
+      "layer": 5,
+      "layerReason": "Integration tests for the new capability",
+      "summary": "Covers: full CRUD lifecycle, conflict (duplicate scope), automatic cascade-delete when a client scope is removed, cascade-delete when a realm is removed, 400 when feature/realm flag disabled, 400 for unknown or non-OID4VC scope, and 400 for caller-supplied createdDate or revision.",
+      "blocks": [
+        "b047",
+        "b048",
+        "b049",
+        "b050",
+        "b051",
+        "b052",
+        "b053",
+        "b054"
+      ]
+    },
+    {
+      "id": "u-c5-2",
+      "file": "tests/base/src/test/java/org/keycloak/tests/admin/PermissionsTest.java",
+      "symbol": "PermissionsTest (verifiable credentials)",
+      "layer": 5,
+      "layerReason": "Verifies RBAC enforcement on the new endpoints",
+      "summary": "Asserts that getCredentials requires USER read permission and createCredential/revokeCredential require USER manage permission",
+      "blocks": [
+        "b045",
+        "b046"
+      ]
+    }
+  ],
+  "edges": [],
+  "coverage": {
+    "ok": true,
+    "counts": {
+      "indexed": 56,
+      "placed": 56
+    },
+    "missing": [],
+    "duplicated": [],
+    "unplacedUnits": [],
+    "danglingRefs": [],
+    "commentGaps": [],
+    "repaired": false
+  }
+}

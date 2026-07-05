@@ -1,0 +1,19 @@
+slug: supabase-query-rewrite
+repo: supabase/supabase
+pr: 47266
+url: https://github.com/supabase/supabase/pull/47266
+title: "feat(studio): add feature to rewrite queries"
+language: TypeScript
+license: Apache-2.0
+merged: 2026-06-29
+stats: "15 files · +986 −229"
+pain: >-
+  GitHub's alphabetical file list opens on a test file, and the Logs Explorer
+  page — where this feature actually lives — is the 14th of 15 files. You read
+  the tests before the thing they test.
+relief: >-
+  ncr starts at the API contract, then the AI rewrite logic, then descends into
+  key discovery and the page that wires it all together.
+notice: >-
+  The two files a reader wants first sort dead last on GitHub; here they open
+  the story.

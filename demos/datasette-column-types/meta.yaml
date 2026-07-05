@@ -1,0 +1,20 @@
+slug: datasette-column-types
+repo: simonw/datasette
+pr: 2667
+url: https://github.com/simonw/datasette/pull/2667
+title: "Add column types system, refs #2664"
+language: Python
+license: Apache-2.0
+merged: 2026-03-17
+stats: "14 files · +1367 −55"
+pain: >-
+  GitHub opens on datasette/app.py — 108 lines of internal registry wiring —
+  and you read the abstraction, its implementations, and the schema before ever
+  seeing where column types reach users (views/table.py, file 9 of 14).
+relief: >-
+  ncr opens with the ColumnType contract, then the plugin hook and built-in
+  types, the internal-DB schema, and only then the rendering pipeline — with
+  the +732-line test file folded into one closing chapter.
+notice: >-
+  A real CREATE TABLE lands in chapter 3, after you've met both its producers
+  and consumers.

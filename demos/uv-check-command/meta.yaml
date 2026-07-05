@@ -1,0 +1,19 @@
+slug: uv-check-command
+repo: astral-sh/uv
+pr: 19605
+url: https://github.com/astral-sh/uv/pull/19605
+title: "Add `uv check` to run `ty` from uv"
+language: Rust
+license: Apache-2.0 OR MIT
+merged: 2026-05-29
+stats: "13 files · +1154 −3"
+pain: >-
+  Crate-name sorting puts uv-bin-install — the bottom-layer machinery that
+  downloads the ty binary — on page one, before you learn a new `uv check`
+  command exists; the implementation is file 6, its dispatch wiring file 8.
+relief: >-
+  ncr opens with the CLI contract, then settings resolution, dispatch, the core
+  check() pipeline, and only then the binary-download adapter it rests on.
+notice: >-
+  The adapter GitHub showed you first is chapter 5 here — right where a reader
+  finally has the context for it.

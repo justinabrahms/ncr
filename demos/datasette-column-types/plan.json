@@ -1,0 +1,693 @@
+{
+  "title": "Add column types system, refs #2664",
+  "prNumber": 2667,
+  "overview": "This PR introduces a column types system: a way to annotate specific table columns with semantic types (url, email, json, etc.) that control rendering, validation, and JSON output transformation. The reading path is: (1) the ColumnType base class contract, (2) the plugin hook that registers types and the built-in implementations, (3) the internal DB schema and startup wiring that loads/stores assignments, (4) the Datasette API methods (get/set/remove), (5) the rendering pipeline changes in table/row views, and (6) write-path validation on insert/update, ending with the test suite.",
+  "chapters": [
+    {
+      "id": "",
+      "title": "ColumnType base class — the contract every type implements",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c0-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "register_column_types hook spec + built-in url/email/json types",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c1-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Internal DB schema — column_types table",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c2-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Datasette startup wiring — registering types and loading config",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c3-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Rendering pipeline — column type render_cell takes priority",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c4-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-4",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-5",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Write-path validation on insert, upsert, and update",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c5-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Documentation — internals API, plugin hook reference, internal DB schema",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c6-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-4",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Test suite — column types",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c7-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-4",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-5",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-6",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-7",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-8",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-9",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-10",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-11",
+          "depth": 0
+        },
+        {
+          "unit": "u-c7-12",
+          "depth": 0
+        }
+      ]
+    }
+  ],
+  "orphans": null,
+  "units": [
+    {
+      "id": "u-c0-0",
+      "file": "datasette/column_types.py",
+      "symbol": "ColumnType",
+      "layer": 1,
+      "layerReason": "Core domain model / contract — everything else builds on this",
+      "summary": "New base class defining the three extension points: render_cell (HTML), validate (write-path), transform_value (JSON output). All return None / pass-through by default, so subclasses only override what they need.",
+      "blocks": [
+        "b005"
+      ]
+    },
+    {
+      "id": "u-c1-0",
+      "file": "datasette/hookspecs.py",
+      "symbol": "render_cell / register_column_types hookspecs",
+      "layer": 2,
+      "layerReason": "Plugin contract layer — defines the two hookspecs that the rest of the system relies on",
+      "summary": "render_cell gains a new column_type parameter (passed to plugins so they can inspect it); register_column_types is the new hookspec through which plugins advertise ColumnType subclasses.",
+      "blocks": [
+        "b013",
+        "b014"
+      ]
+    },
+    {
+      "id": "u-c1-1",
+      "file": "datasette/default_column_types.py",
+      "symbol": "UrlColumnType / EmailColumnType / JsonColumnType",
+      "layer": 2,
+      "layerReason": "Built-in implementations of the new plugin hook",
+      "summary": "Three built-in column types shipped with Datasette. Each implements render_cell (safe HTML anchor/pre) and validate (regex-based). Note that validate skips None/empty-string values intentionally.",
+      "blocks": [
+        "b006",
+        "b007",
+        "b008",
+        "b009",
+        "b010",
+        "b011",
+        "b012"
+      ]
+    },
+    {
+      "id": "u-c1-2",
+      "file": "datasette/plugins.py",
+      "symbol": "DEFAULT_PLUGINS registration",
+      "layer": 2,
+      "layerReason": "Wires the new default_column_types module into the plugin manager at module load time",
+      "summary": "datasette.default_column_types added to the DEFAULT_PLUGINS tuple so it is always loaded.",
+      "blocks": [
+        "b015"
+      ]
+    },
+    {
+      "id": "u-c2-0",
+      "file": "datasette/utils/internal_db.py",
+      "symbol": "column_types DDL",
+      "layer": 3,
+      "layerReason": "Persistence layer — the table that stores all assignments",
+      "summary": "Adds the column_types table to the internal SQLite DB, keyed on (database_name, resource_name, column_name). config is stored as JSON text.",
+      "blocks": [
+        "b016"
+      ]
+    },
+    {
+      "id": "u-c3-0",
+      "file": "datasette/app.py",
+      "symbol": "_column_types init + invoke_startup",
+      "layer": 3,
+      "layerReason": "Application startup — populates the in-memory registry and seeds the DB from config",
+      "summary": "_column_types dict is initialized empty in __init__, then populated from the register_column_types hook during invoke_startup (duplicate names raise StartupError). Config loading from datasette.json is deferred until after schemas are refreshed.",
+      "blocks": [
+        "b001",
+        "b002",
+        "b003"
+      ]
+    },
+    {
+      "id": "u-c3-1",
+      "file": "datasette/app.py",
+      "symbol": "_apply_column_types_config / get_column_type(s) / set_column_type / remove_column_type",
+      "layer": 3,
+      "layerReason": "Application-layer API methods that plugins and internal code call",
+      "summary": "_apply_column_types_config walks the datasette.json databases→tables→column_types config and calls set_column_type for each entry (warning on unknown type names). The get/set/remove methods are the stable public API — get_column_type(s) looks up the DB, instantiates the class with its config, and returns a live ColumnType instance with .config populated.",
+      "blocks": [
+        "b004"
+      ]
+    },
+    {
+      "id": "u-c4-0",
+      "file": "datasette/views/table.py",
+      "symbol": "display_columns_and_rows — column type rendering",
+      "layer": 4,
+      "layerReason": "View layer — HTML table rendering",
+      "summary": "display_columns_and_rows now fetches the ct_map once per call and (a) annotates each column dict with column_type/column_type_config for the display_columns extra, and (b) tries ct.render_cell before falling back to pm.hook.render_cell. The column_type arg is also forwarded to the plugin hook so plugins can inspect it.",
+      "blocks": [
+        "b024",
+        "b025",
+        "b026",
+        "b027",
+        "b028"
+      ]
+    },
+    {
+      "id": "u-c4-1",
+      "file": "datasette/views/table.py",
+      "symbol": "extra_render_cell — table JSON extra",
+      "layer": 4,
+      "layerReason": "JSON API extra — same priority logic for the render_cell extra",
+      "summary": "The extra_render_cell async function inside table_view_data applies the same ct-first-then-plugin logic for the ?_extra=render_cell JSON output.",
+      "blocks": [
+        "b030",
+        "b031",
+        "b032",
+        "b033"
+      ]
+    },
+    {
+      "id": "u-c4-2",
+      "file": "datasette/views/row.py",
+      "symbol": "row.py — render_cell extra",
+      "layer": 4,
+      "layerReason": "Row detail endpoint — same priority pattern",
+      "summary": "The row endpoint's render_cell extra follows the same pattern: fetch ct_map, try ct.render_cell first, fall through to the plugin hook with column_type= forwarded.",
+      "blocks": [
+        "b018",
+        "b019",
+        "b020",
+        "b021"
+      ]
+    },
+    {
+      "id": "u-c4-3",
+      "file": "datasette/views/database.py",
+      "symbol": "display_rows — column_type=None passthrough",
+      "layer": 4,
+      "layerReason": "Query view display_rows doesn't have column type context; passes None",
+      "summary": "The query-view display_rows helper passes column_type=None to render_cell since custom SQL queries have no table-level column type assignments.",
+      "blocks": [
+        "b017"
+      ]
+    },
+    {
+      "id": "u-c4-4",
+      "file": "datasette/views/table.py",
+      "symbol": "extra_column_types / registry registration",
+      "layer": 4,
+      "layerReason": "New ?_extra=column_types JSON extra exposed on the table endpoint",
+      "summary": "extra_column_types returns {col_name: {type, config}} for all assigned columns. It is registered in the asyncinject Registry and wired into the extras bundle.",
+      "blocks": [
+        "b034",
+        "b035"
+      ]
+    },
+    {
+      "id": "u-c4-5",
+      "file": "datasette/views/table.py",
+      "symbol": "transform_value in JSON rows output",
+      "layer": 4,
+      "layerReason": "JSON API — post-processes raw SQLite rows before data['rows'] is set",
+      "summary": "After all extras resolve, each row dict is passed through ct.transform_value for any column with an assigned type before being placed in data['rows']. This is what allows a plugin to normalize values in JSON output.",
+      "blocks": [
+        "b036"
+      ]
+    },
+    {
+      "id": "u-c5-0",
+      "file": "datasette/views/table.py",
+      "symbol": "_validate_column_types",
+      "layer": 4,
+      "layerReason": "Shared validation helper called by all write paths",
+      "summary": "Shared helper that iterates rows, looks up ct_map, and calls ct.validate for each column present in the row. Returns a list of 'col_name: error' strings.",
+      "blocks": [
+        "b023"
+      ]
+    },
+    {
+      "id": "u-c5-1",
+      "file": "datasette/views/table.py",
+      "symbol": "TableInsertView.post — insert/upsert validation",
+      "layer": 4,
+      "layerReason": "Insert and upsert write path",
+      "summary": "Called after _validate_data passes; if ct_errors is non-empty the view returns a 400 immediately.",
+      "blocks": [
+        "b029"
+      ]
+    },
+    {
+      "id": "u-c5-2",
+      "file": "datasette/views/row.py",
+      "symbol": "RowUpdateView.post — update validation",
+      "layer": 4,
+      "layerReason": "Row update write path",
+      "summary": "Same pattern as insert: validate the update dict against column types before executing the write.",
+      "blocks": [
+        "b022"
+      ]
+    },
+    {
+      "id": "u-c6-0",
+      "file": "docs/internals.rst",
+      "symbol": "docs/internals.rst — Column types API section",
+      "layer": 6,
+      "layerReason": "Docs",
+      "summary": "Documents get_column_type, get_column_types, set_column_type, remove_column_type with parameters, return values, and code examples.",
+      "blocks": [
+        "b037",
+        "b038",
+        "b039",
+        "b040",
+        "b041",
+        "b042",
+        "b043",
+        "b044",
+        "b045",
+        "b046",
+        "b047",
+        "b048",
+        "b049",
+        "b050",
+        "b051",
+        "b052",
+        "b053",
+        "b054",
+        "b055",
+        "b056",
+        "b057",
+        "b058",
+        "b059"
+      ]
+    },
+    {
+      "id": "u-c6-1",
+      "file": "docs/internals.rst",
+      "symbol": "docs/internals.rst — internal DB schema",
+      "layer": 6,
+      "layerReason": "Docs",
+      "summary": "Adds column_types DDL to the internal database schema reference.",
+      "blocks": [
+        "b060"
+      ]
+    },
+    {
+      "id": "u-c6-2",
+      "file": "docs/plugin_hooks.rst",
+      "symbol": "docs/plugin_hooks.rst — render_cell update",
+      "layer": 6,
+      "layerReason": "Docs",
+      "summary": "Documents the new column_type parameter on render_cell and the priority rule (column type wins over plugins).",
+      "blocks": [
+        "b061",
+        "b062",
+        "b063"
+      ]
+    },
+    {
+      "id": "u-c6-3",
+      "file": "docs/plugin_hooks.rst",
+      "symbol": "docs/plugin_hooks.rst — register_column_types hook",
+      "layer": 6,
+      "layerReason": "Docs",
+      "summary": "Full documentation for the new register_column_types hook: example ColorColumnType plugin, class attribute requirements, all three method signatures, per-column config, datasette.yaml config syntax, and the three built-in types.",
+      "blocks": [
+        "b064",
+        "b065",
+        "b066",
+        "b067",
+        "b068",
+        "b069",
+        "b070",
+        "b071",
+        "b072",
+        "b073",
+        "b074",
+        "b075",
+        "b076",
+        "b077",
+        "b078"
+      ]
+    },
+    {
+      "id": "u-c6-4",
+      "file": "docs/plugins.rst",
+      "symbol": "docs/plugins.rst — default plugins list",
+      "layer": 6,
+      "layerReason": "Docs",
+      "summary": "Adds datasette.default_column_types to the --all plugins output example.",
+      "blocks": [
+        "b079"
+      ]
+    },
+    {
+      "id": "u-c7-0",
+      "file": "tests/test_column_types.py",
+      "symbol": "fixture + internal DB / config loading tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "ds_ct fixture creates a posts table with email/url/json/markdown column types in config. Tests verify the column_types table is created, config is loaded correctly (unknown type 'markdown' is silently skipped), and the type+config dict form works.",
+      "blocks": [
+        "b080",
+        "b081",
+        "b082",
+        "b083",
+        "b084",
+        "b085",
+        "b086",
+        "b087",
+        "b088"
+      ]
+    },
+    {
+      "id": "u-c7-1",
+      "file": "tests/test_column_types.py",
+      "symbol": "Datasette API method tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Tests for get_column_type, get_column_types, set/remove round-trips, and config round-trip with a custom config dict.",
+      "blocks": [
+        "b089",
+        "b090",
+        "b091",
+        "b092",
+        "b093"
+      ]
+    },
+    {
+      "id": "u-c7-2",
+      "file": "tests/test_column_types.py",
+      "symbol": "Plugin registration tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Verifies built-in types are registered by name and that class attributes (name, description) are correct.",
+      "blocks": [
+        "b094",
+        "b095",
+        "b096"
+      ]
+    },
+    {
+      "id": "u-c7-3",
+      "file": "tests/test_column_types.py",
+      "symbol": "JSON API extras tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Tests the column_types extra (type/config dict per column) and that display_columns includes column_type/column_type_config fields.",
+      "blocks": [
+        "b097",
+        "b098",
+        "b099"
+      ]
+    },
+    {
+      "id": "u-c7-4",
+      "file": "tests/test_column_types.py",
+      "symbol": "Rendering tests — url/email/json cells",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Verifies that the render_cell extra returns href links for url columns, mailto: links for email, and \u003cpre\u003e blocks for json.",
+      "blocks": [
+        "b100",
+        "b101",
+        "b102",
+        "b103"
+      ]
+    },
+    {
+      "id": "u-c7-5",
+      "file": "tests/test_column_types.py",
+      "symbol": "Validation tests — insert/update",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Covers all validation scenarios: invalid email/url/json return 400 with column name in error; valid values and null/empty-string values pass through with 201.",
+      "blocks": [
+        "b104",
+        "b105",
+        "b106",
+        "b107",
+        "b108",
+        "b109",
+        "b110",
+        "b111"
+      ]
+    },
+    {
+      "id": "u-c7-6",
+      "file": "tests/test_column_types.py",
+      "symbol": "ColumnType base class default tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Verifies the default implementations of render_cell/validate/transform_value return None/None/value.",
+      "blocks": [
+        "b112",
+        "b113"
+      ]
+    },
+    {
+      "id": "u-c7-7",
+      "file": "tests/test_column_types.py",
+      "symbol": "render_cell extra and duplicate name tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "render_cell extra uses column type rendering; registering a type with a duplicate name raises StartupError.",
+      "blocks": [
+        "b114",
+        "b115",
+        "b116",
+        "b117"
+      ]
+    },
+    {
+      "id": "u-c7-8",
+      "file": "tests/test_column_types.py",
+      "symbol": "Row endpoint and transform_value tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Row detail endpoint honours column type rendering; transform_value is applied to rows in the JSON output (UpperColumnType test).",
+      "blocks": [
+        "b118",
+        "b119",
+        "b120",
+        "b121"
+      ]
+    },
+    {
+      "id": "u-c7-9",
+      "file": "tests/test_column_types.py",
+      "symbol": "Column type priority over render_cell plugins test",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "PriorityColumnType wins over a competing render_cell plugin hook — the column_type arg is passed to plugins so they could inspect it, but if the column type already rendered the value plugins are skipped.",
+      "blocks": [
+        "b122",
+        "b123"
+      ]
+    },
+    {
+      "id": "u-c7-10",
+      "file": "tests/test_column_types.py",
+      "symbol": "HTML page rendering tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Verifies column type rendering flows through to the HTML row detail and table list pages.",
+      "blocks": [
+        "b124",
+        "b125",
+        "b126",
+        "b127"
+      ]
+    },
+    {
+      "id": "u-c7-11",
+      "file": "tests/test_column_types.py",
+      "symbol": "Upsert validation, warning, and config-overwrite tests",
+      "layer": 5,
+      "layerReason": "Tests",
+      "summary": "Upsert validation mirrors insert; unknown type in config logs a WARNING; config always overwrites any manually-set type in the internal DB on startup.",
+      "blocks": [
+        "b128",
+        "b129",
+        "b130",
+        "b131",
+        "b132",
+        "b133",
+        "b134",
+        "b135",
+        "b136"
+      ]
+    },
+    {
+      "id": "u-c7-12",
+      "file": "tests/test_plugins.py",
+      "symbol": "test_hook_register_column_types in test_plugins.py",
+      "layer": 5,
+      "layerReason": "Tests — hook coverage test",
+      "summary": "Minimal smoke-test in test_plugins.py ensuring the hook is exercised by the standard hook-coverage test suite.",
+      "blocks": [
+        "b137"
+      ]
+    }
+  ],
+  "edges": [],
+  "coverage": {
+    "ok": true,
+    "counts": {
+      "indexed": 137,
+      "placed": 137
+    },
+    "missing": [],
+    "duplicated": [],
+    "unplacedUnits": [],
+    "danglingRefs": [],
+    "commentGaps": [],
+    "repaired": false
+  }
+}

@@ -1,0 +1,628 @@
+{
+  "title": "feat(studio): AI-powered BigQuery→ClickHouse logs query rewrite",
+  "prNumber": 47266,
+  "overview": "This PR adds an AI-powered query rewrite flow for the Logs Explorer so that users' saved BigQuery-dialect queries continue to work after the backend moved to ClickHouse. The core new file is `logs-sql-rewrite.ts`, which builds a detailed prompt and calls the existing `/api/ai/code/complete` endpoint with a new `dialect: 'clickhouse'` flag. The API endpoint was updated to branch on that flag, skipping the Postgres schema fetch and using a dedicated ClickHouse system prompt and model. The Explorer page gains a banner (shown once, dismissal persisted) and a toolbar button that trigger the rewrite, then overlay a Monaco diff editor for accept/discard review. A parallel new file (`Logs.fieldReference.ts`) maps BigQuery-style field schemas to OTEL `log_attributes` paths, and a new data query (`otel-log-keys-query.ts`) discovers real `log_attributes` keys from live data so the prompt and Field Reference panel show exact paths. Read from the API contract inward: endpoint → rewrite logic → data layer → UI entry points → field reference → tests.",
+  "chapters": [
+    {
+      "id": "",
+      "title": "POST /api/ai/code/complete — ClickHouse dialect branch",
+      "summary": "The completion API gains a `dialect` field; when set to `clickhouse` it bypasses the Postgres schema fetch, uses a dedicated model and system prompt, and sends the rewrite prompt directly as the user message.",
+      "nodes": [
+        {
+          "unit": "u-c0-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-3",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "AI rewrite logic — prompt, detection, and network call",
+      "summary": "New `logs-sql-rewrite.ts` encapsulates everything the client needs to invoke the rewrite: detecting whether a query is legacy BigQuery, identifying its source, building the ClickHouse conversion prompt, and posting to the endpoint.",
+      "nodes": [
+        {
+          "unit": "u-c1-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-3",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Live log_attributes key discovery — otel-log-keys-query",
+      "summary": "New data-layer module queries real ClickHouse data to discover which `log_attributes` keys a source actually emits, so both the rewrite prompt and the Field Reference panel show exact paths.",
+      "nodes": [
+        {
+          "unit": "u-c2-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Logs Explorer page — rewrite entry points, diff review overlay, and OTEL source insertion",
+      "summary": "The Explorer page wires together detection, the banner, the toolbar button, the AI call, and the Monaco diff overlay for accept/discard.",
+      "nodes": [
+        {
+          "unit": "u-c3-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-4",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-5",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "OTEL banner and 'Fix Query' toolbar button components",
+      "summary": "Two new/modified UI components provide the visible entry points for the rewrite flow.",
+      "nodes": [
+        {
+          "unit": "u-c4-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-4",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "OTEL field schema mapping — Logs.fieldReference.ts",
+      "summary": "A new module converts the existing BigQuery-style log field schemas (from `shared-data`) into OTEL-schema representations with `log_attributes['key']` paths, and builds field lists from dynamically discovered keys.",
+      "nodes": [
+        {
+          "unit": "u-c5-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "LogsExplorerHeader — OTEL-aware Field Reference",
+      "summary": "The header's Field Reference drawer gains the same OTEL-mode behaviour as the panel version: schema transformation, discovered-key loading, and dialect-appropriate description text.",
+      "nodes": [
+        {
+          "unit": "u-c6-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "useLogsUrlState — stable setter callbacks",
+      "summary": "All setter functions in the URL-state hook are wrapped in `useCallback` so their identities are stable across renders, preventing spurious re-executions of effects that depend on them.",
+      "nodes": [
+        {
+          "unit": "u-c7-0",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Tests",
+      "summary": "Unit tests cover every new pure function and the network call.",
+      "nodes": [
+        {
+          "unit": "u-c8-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c8-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c8-2",
+          "depth": 0
+        }
+      ]
+    }
+  ],
+  "orphans": null,
+  "units": [
+    {
+      "id": "u-c0-0",
+      "file": "apps/studio/pages/api/ai/code/complete.ts",
+      "symbol": "dialect field + isClickhouse flag",
+      "layer": 1,
+      "layerReason": "API contract / request schema",
+      "summary": "Adds `dialect: 'clickhouse'` to the request schema and derives `isClickhouse` from it.",
+      "blocks": [
+        "b089",
+        "b090",
+        "b091"
+      ]
+    },
+    {
+      "id": "u-c0-1",
+      "file": "apps/studio/lib/ai/model.utils.ts",
+      "symbol": "LOGS_REWRITE_MODEL",
+      "layer": 1,
+      "layerReason": "Model selection at the API layer",
+      "summary": "Introduces a separate model entry (`gpt-5.4-nano` with `reasoningEffort: 'low'`) used only for log rewrites, selected when `isClickhouse` is true.",
+      "blocks": [
+        "b085",
+        "b087",
+        "b092"
+      ]
+    },
+    {
+      "id": "u-c0-2",
+      "file": "apps/studio/lib/ai/prompts.ts",
+      "symbol": "CLICKHOUSE_LOGS_COMPLETION_INSTRUCTIONS",
+      "layer": 1,
+      "layerReason": "Prompt / system instructions",
+      "summary": "New system-prompt fragment that tells the model this is ClickHouse (not Postgres/BigQuery): single `logs` table, `log_attributes` map lookups, ClickHouse function names.",
+      "blocks": [
+        "b086",
+        "b088"
+      ]
+    },
+    {
+      "id": "u-c0-3",
+      "file": "apps/studio/pages/api/ai/code/complete.ts",
+      "symbol": "handler — clickhouse vs postgres branching",
+      "layer": 2,
+      "layerReason": "Handler logic",
+      "summary": "For ClickHouse: skips schema fetch (`includeSchema = false`), builds a minimal system prompt from `CLICKHOUSE_LOGS_COMPLETION_INSTRUCTIONS`, and sends the rewrite prompt as the raw user message instead of wrapping it in a schema-annotated template.",
+      "blocks": [
+        "b093",
+        "b094",
+        "b095",
+        "b096",
+        "b097",
+        "b098",
+        "b099",
+        "b100"
+      ]
+    },
+    {
+      "id": "u-c1-0",
+      "file": "apps/studio/components/interfaces/Settings/Logs/logs-sql-rewrite.ts",
+      "symbol": "detectLogSource / looksLikeLegacyLogsQuery",
+      "layer": 3,
+      "layerReason": "Pure domain logic, no I/O",
+      "summary": "`detectLogSource` extracts the log source from either a `source = '...'` filter or a legacy `FROM \u003ctable\u003e` clause (with alias normalisation for `pg_cron_logs`). `looksLikeLegacyLogsQuery` uses heuristics (unnest, cast-timestamp, non-`logs` FROM) to decide whether the banner/button should appear.",
+      "blocks": [
+        "b058",
+        "b059",
+        "b060"
+      ]
+    },
+    {
+      "id": "u-c1-1",
+      "file": "apps/studio/components/interfaces/Settings/Logs/logs-sql-rewrite.ts",
+      "symbol": "buildClickhouseRewritePrompt / LOGS_SCHEMA_REFERENCE",
+      "layer": 3,
+      "layerReason": "Prompt construction, no I/O",
+      "summary": "The schema reference constant teaches the model the ClickHouse `logs` table shape. `renderAvailableKeys` injects real discovered keys so the model uses exact dotted paths rather than guessing. The 6-rule prompt + worked example gives the model unambiguous conversion instructions.",
+      "blocks": [
+        "b046",
+        "b047",
+        "b048",
+        "b049",
+        "b050",
+        "b051",
+        "b052",
+        "b053",
+        "b054",
+        "b055",
+        "b056"
+      ]
+    },
+    {
+      "id": "u-c1-2",
+      "file": "apps/studio/components/interfaces/Settings/Logs/logs-sql-rewrite.ts",
+      "symbol": "stripSqlCodeFences",
+      "layer": 3,
+      "layerReason": "Output post-processing utility",
+      "summary": "Strips markdown code fences from the model response in case the model wraps output despite being told not to.",
+      "blocks": [
+        "b057"
+      ]
+    },
+    {
+      "id": "u-c1-3",
+      "file": "apps/studio/components/interfaces/Settings/Logs/logs-sql-rewrite.ts",
+      "symbol": "rewriteLogsSqlWithAI",
+      "layer": 3,
+      "layerReason": "Network call, depends on prompt builder and endpoint above",
+      "summary": "Posts to `/api/ai/code/complete` with `dialect: 'clickhouse'`, the full prompt, and the original SQL as `selection`. Throws on HTTP error or empty result after stripping fences.",
+      "blocks": [
+        "b061",
+        "b062"
+      ]
+    },
+    {
+      "id": "u-c2-0",
+      "file": "apps/studio/data/logs/otel-log-keys-query.ts",
+      "symbol": "fetchOtelLogKeys",
+      "layer": 4,
+      "layerReason": "Data / analytics query",
+      "summary": "Runs `SELECT arrayJoin(mapKeys(log_attributes)) ... FROM logs WHERE source = ?` over the last 7 days, returning keys sorted by frequency. Uses parameterised `safeSql`/`analyticsLiteral` to avoid injection.",
+      "blocks": [
+        "b072",
+        "b073",
+        "b074",
+        "b075"
+      ]
+    },
+    {
+      "id": "u-c2-1",
+      "file": "apps/studio/data/logs/otel-log-keys-query.ts",
+      "symbol": "useOtelLogKeysQuery",
+      "layer": 4,
+      "layerReason": "Data hook wrapping the fetch",
+      "summary": "React Query wrapper around `fetchOtelLogKeys` with a 5-minute stale time; only fires when both `projectRef` and `source` are present and `enabled` is true.",
+      "blocks": [
+        "b076"
+      ]
+    },
+    {
+      "id": "u-c3-0",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "imports and otelSourceQuery",
+      "layer": 2,
+      "layerReason": "Page-level wiring",
+      "summary": "Imports `rewriteLogsSqlWithAI`, `detectLogSource`, `looksLikeLegacyLogsQuery`, `DiffEditor`, `fetchOtelLogKeys`, project/org hooks, and defines `otelSourceQuery` for OTEL-aware source insertion.",
+      "blocks": [
+        "b101",
+        "b102",
+        "b103",
+        "b104",
+        "b105",
+        "b106",
+        "b107",
+        "b108",
+        "b109"
+      ]
+    },
+    {
+      "id": "u-c3-1",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "rewrite state + showRewriteCTA",
+      "layer": 2,
+      "layerReason": "Page state",
+      "summary": "Adds `rewriteProposal` (original/modified pair), `isRewriting`, and `rewriteBannerDismissed` (persisted via localStorage). `showRewriteCTA` gates both entry points: only shown when the OTEL endpoint is active and the current query looks legacy.",
+      "blocks": [
+        "b110",
+        "b111"
+      ]
+    },
+    {
+      "id": "u-c3-2",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "handleRewrite / acceptRewrite / discardRewrite",
+      "layer": 2,
+      "layerReason": "Primary orchestration logic for the feature",
+      "summary": "`handleRewrite` detects the source, fetches real keys, calls `rewriteLogsSqlWithAI`, then guards against clobbering an editor that changed while the async calls were in flight before setting `rewriteProposal`. Accept writes the result into the editor; discard clears the proposal.",
+      "blocks": [
+        "b112"
+      ]
+    },
+    {
+      "id": "u-c3-3",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "handleInsertSource — OTEL branch",
+      "layer": 2,
+      "layerReason": "Source insertion behaviour change",
+      "summary": "When the OTEL endpoint is active, 'Insert source' either replaces an existing `source = '...'` filter in-place or replaces the whole query with the OTEL starter template, instead of the old string-splice into `from`.",
+      "blocks": [
+        "b113",
+        "b114"
+      ]
+    },
+    {
+      "id": "u-c3-4",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "useEffect — simplified placeholder logic",
+      "layer": 2,
+      "layerReason": "Lifecycle simplification",
+      "summary": "Collapses the two separate useEffects (one for search/q, one for OTEL placeholder) into one. The OTEL vs. legacy placeholder choice is resolved upstream via `PLACEHOLDER_QUERY`.",
+      "blocks": [
+        "b115",
+        "b116",
+        "b117"
+      ]
+    },
+    {
+      "id": "u-c3-5",
+      "file": "apps/studio/pages/project/[ref]/logs/explorer/index.tsx",
+      "symbol": "banner, toolbar button, and diff overlay in JSX",
+      "layer": 2,
+      "layerReason": "UI rendering",
+      "summary": "Renders `LogsExplorerOtelBanner` (below the query panel, shown until dismissed), passes `showRewriteAction`/`isRewriting`/`onRewrite` to `LogsQueryPanel` (shown after banner is dismissed), and overlays a `DiffEditor` with Accept/Discard controls when a `rewriteProposal` is pending.",
+      "blocks": [
+        "b118",
+        "b119",
+        "b120"
+      ]
+    },
+    {
+      "id": "u-c4-0",
+      "file": "apps/studio/components/interfaces/Settings/Logs/LogsExplorerOtelBanner.tsx",
+      "symbol": "LogsExplorerOtelBanner",
+      "layer": 2,
+      "layerReason": "UI component, consumer of parent state",
+      "summary": "An `Admonition`-based banner with 'Rewrite with Assistant' and 'Dismiss' actions. Shown only until dismissed; dismissal is persisted so it doesn't reappear.",
+      "blocks": [
+        "b016",
+        "b017",
+        "b018"
+      ]
+    },
+    {
+      "id": "u-c4-1",
+      "file": "apps/studio/components/interfaces/Settings/Logs/LogsQueryPanel.tsx",
+      "symbol": "LogsQueryPanel — new props and imports",
+      "layer": 2,
+      "layerReason": "Component interface change",
+      "summary": "Adds `showRewriteAction`, `isRewriting`, `onRewrite` props; switches from `SidePanel` to `Sheet` for the Field Reference drawer; imports OTEL field utilities and the new log-keys query.",
+      "blocks": [
+        "b019",
+        "b020",
+        "b021",
+        "b022",
+        "b023",
+        "b024",
+        "b025",
+        "b026",
+        "b027",
+        "b028"
+      ]
+    },
+    {
+      "id": "u-c4-2",
+      "file": "apps/studio/components/interfaces/Settings/Logs/LogsQueryPanel.tsx",
+      "symbol": "LogsQueryPanel — OTEL schema selection",
+      "layer": 2,
+      "layerReason": "Feature-flagged schema transformation in component",
+      "summary": "Under the `otelLegacyLogs` flag, applies `toOtelFieldSchemas` to convert BigQuery-style field paths to `log_attributes[...]` form, and fetches real discovered keys for the selected source when the drawer is open.",
+      "blocks": [
+        "b029",
+        "b030",
+        "b031"
+      ]
+    },
+    {
+      "id": "u-c4-3",
+      "file": "apps/studio/components/interfaces/Settings/Logs/LogsQueryPanel.tsx",
+      "symbol": "LogsQueryPanel — Field Reference UI overhaul",
+      "layer": 2,
+      "layerReason": "UI restructuring and OTEL-aware field rendering",
+      "summary": "Replaces the old `SidePanel`/`Table` (to-be-cleaned) with a `Sheet`/shadcn `Table`. Adds the 'Rewrite query to ClickHouse SQL' tooltip+button next to Field Reference. In OTEL mode, shows a loading skeleton while keys are fetched, then renders `otelFieldsFromKeys(discoveredKeys)` instead of the static schema.",
+      "blocks": [
+        "b032",
+        "b033",
+        "b034",
+        "b035",
+        "b036",
+        "b037",
+        "b038"
+      ]
+    },
+    {
+      "id": "u-c4-4",
+      "file": "apps/studio/components/interfaces/Settings/Logs/LogsErrorRenderers/DefaultErrorRenderer.tsx",
+      "symbol": "DefaultErrorRenderer padding",
+      "layer": 2,
+      "layerReason": "Visual fix in the same area",
+      "summary": "Minor padding tweak to the error code block.",
+      "blocks": [
+        "b015"
+      ]
+    },
+    {
+      "id": "u-c5-0",
+      "file": "apps/studio/components/interfaces/Settings/Logs/Logs.fieldReference.ts",
+      "symbol": "OTEL_BASE_FIELDS / OTEL_COLUMN_PATHS",
+      "layer": 3,
+      "layerReason": "Domain constants",
+      "summary": "Defines the five fixed columns in the ClickHouse `logs` table (`id`, `timestamp`, `event_message`, `severity_text`, `source`) that are real columns, not `log_attributes` entries.",
+      "blocks": [
+        "b006",
+        "b007",
+        "b008",
+        "b009"
+      ]
+    },
+    {
+      "id": "u-c5-1",
+      "file": "apps/studio/components/interfaces/Settings/Logs/Logs.fieldReference.ts",
+      "symbol": "toOtelFieldSchema / toOtelFieldSchemas",
+      "layer": 3,
+      "layerReason": "Domain transformation",
+      "summary": "`toOtelAttributeKey` strips the `metadata.` prefix; `toLogAttributePath` produces the `log_attributes['...']` syntax with escaping. `toOtelFieldSchema` keeps the base columns unchanged and remaps every other field through those two helpers.",
+      "blocks": [
+        "b010",
+        "b011",
+        "b012",
+        "b013"
+      ]
+    },
+    {
+      "id": "u-c5-2",
+      "file": "apps/studio/components/interfaces/Settings/Logs/Logs.fieldReference.ts",
+      "symbol": "otelFieldsFromKeys",
+      "layer": 3,
+      "layerReason": "Domain utility composing base fields + discovered keys",
+      "summary": "Produces a field list from dynamically discovered key strings (returned by `fetchOtelLogKeys`), filtering out keys that are already real columns to avoid duplicates.",
+      "blocks": [
+        "b014"
+      ]
+    },
+    {
+      "id": "u-c6-0",
+      "file": "apps/studio/components/ui/Logs/LogsExplorerHeader.tsx",
+      "symbol": "LogsExplorerHeader — OTEL state",
+      "layer": 2,
+      "layerReason": "Component state / data fetching",
+      "summary": "Imports the field reference utilities and the log-keys query. Under the flag, applies `toOtelFieldSchemas` and fetches `discoveredKeys` for the selected source when the panel is open.",
+      "blocks": [
+        "b063",
+        "b064",
+        "b065",
+        "b066"
+      ]
+    },
+    {
+      "id": "u-c6-1",
+      "file": "apps/studio/components/ui/Logs/LogsExplorerHeader.tsx",
+      "symbol": "LogsExplorerHeader — OTEL-aware field table",
+      "layer": 2,
+      "layerReason": "UI rendering, mirrors LogsQueryPanel changes",
+      "summary": "Branches the description text (unnesting joins vs. `log_attributes['key']` map lookups) and the field table body (`otelFieldsFromKeys(discoveredKeys)` vs. static schema fields), with a loading state.",
+      "blocks": [
+        "b067",
+        "b068",
+        "b069",
+        "b070",
+        "b071"
+      ]
+    },
+    {
+      "id": "u-c7-0",
+      "file": "apps/studio/hooks/analytics/useLogsUrlState.ts",
+      "symbol": "useLogsUrlState setters → useCallback",
+      "layer": 3,
+      "layerReason": "Hook behaviour fix; enables the Explorer page effect change",
+      "summary": "Stabilising these callbacks is a prerequisite for including them in the simplified `useEffect` dependency array in the Explorer page without triggering infinite loops.",
+      "blocks": [
+        "b077",
+        "b078",
+        "b079",
+        "b080",
+        "b081",
+        "b082",
+        "b083",
+        "b084"
+      ]
+    },
+    {
+      "id": "u-c8-0",
+      "file": "apps/studio/components/interfaces/Settings/Logs/logs-sql-rewrite.test.ts",
+      "symbol": "logs-sql-rewrite.test.ts",
+      "layer": 6,
+      "layerReason": "Unit tests",
+      "summary": "Tests `buildClickhouseRewritePrompt` (schema reference inclusion, key injection, worked example), `detectLogSource` (both path styles, alias mapping), `looksLikeLegacyLogsQuery` (positive and negative cases), `stripSqlCodeFences`, and `rewriteLogsSqlWithAI` (happy path, HTTP error, empty response).",
+      "blocks": [
+        "b039",
+        "b040",
+        "b041",
+        "b042",
+        "b043",
+        "b044",
+        "b045"
+      ]
+    },
+    {
+      "id": "u-c8-1",
+      "file": "apps/studio/components/interfaces/Settings/Logs/Logs.fieldReference.test.ts",
+      "symbol": "Logs.fieldReference.test.ts",
+      "layer": 6,
+      "layerReason": "Unit tests",
+      "summary": "Tests `toOtelFieldSchemas` (base columns preserved, non-column fields remapped, `metadata.` prefix dropped, types preserved) and `otelFieldsFromKeys` (base fields, key-to-path mapping, column exclusion, escaping, empty input).",
+      "blocks": [
+        "b001",
+        "b002",
+        "b003",
+        "b004",
+        "b005"
+      ]
+    },
+    {
+      "id": "u-c8-2",
+      "file": "apps/studio/tests/features/logs/LogsQueryPanel.test.tsx",
+      "symbol": "LogsQueryPanel.test.tsx — named export update",
+      "layer": 6,
+      "layerReason": "Test fixture update",
+      "summary": "Updates the import to use the now-named export `LogsQueryPanel`.",
+      "blocks": [
+        "b121"
+      ]
+    }
+  ],
+  "edges": [],
+  "coverage": {
+    "ok": true,
+    "counts": {
+      "indexed": 121,
+      "placed": 121
+    },
+    "missing": [],
+    "duplicated": [],
+    "unplacedUnits": [],
+    "danglingRefs": [],
+    "commentGaps": [],
+    "repaired": false
+  }
+}
