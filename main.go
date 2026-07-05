@@ -198,6 +198,13 @@ func run(argv []string) int {
 	}
 
 	rplan := normalizePlan(raw, index)
+	// The model may omit title/prNumber; the PR metadata is authoritative anyway.
+	if rplan.Title == "" {
+		rplan.Title = meta.Title
+	}
+	if rplan.PRNumber == 0 {
+		rplan.PRNumber = meta.Number
+	}
 
 	var commentBlocks []string
 	if len(comments) > 0 {
