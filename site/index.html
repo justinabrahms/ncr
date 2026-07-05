@@ -52,9 +52,19 @@ main{padding:36px 0 8px}
 .cta{display:inline-block;font-size:14px;font-weight:600;color:var(--accent-fg);background:var(--accent);padding:8px 15px;border-radius:8px;text-decoration:none}
 .cta:hover{opacity:.88}
 .gh{font-size:13px;color:var(--muted)}
-.install{margin:44px 0 0;padding:22px 24px;background:var(--card);border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.install code{font:14px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 14px}
-.install a{color:var(--accent)}
+.usage{margin:44px 0 0;padding:26px 28px 30px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.usage>h2{font-size:18px;margin:0 0 4px}
+.usage>.sub{color:var(--muted);font-size:14px;margin:0 0 24px;max-width:60ch}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:22px}
+.steps>li{display:flex;gap:16px}
+.step-n{flex:none;width:26px;height:26px;border-radius:99px;background:var(--accent);color:var(--accent-fg);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.step-body{flex:1;min-width:0}
+.step-body h3{font-size:14px;margin:3px 0 9px}
+.cmd{font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:11px 14px;margin:0;overflow-x:auto;white-space:pre}
+.cmd .c{color:var(--muted)}
+.note{color:var(--muted);font-size:13px;margin:9px 0 0}
+.note code,.step-body p code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.note a{color:var(--accent)}
 footer{margin-top:48px;padding:26px 0 40px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
 footer ul{list-style:none;margin:8px 0 16px;padding:0}
 footer li{margin:3px 0}
@@ -174,11 +184,47 @@ footer h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0;
 
   </ul>
 
-  <div class="install">
-    <code>brew install justinabrahms/tap/ncr</code>
-    <span>then <code style="padding:2px 8px">ncr owner/repo 1234</code> on any PR ·
-    <a href="https://github.com/justinabrahms/ncr">source on GitHub</a></span>
-  </div>
+  <section class="usage">
+    <h2>Run it on your own PRs</h2>
+    <p class="sub">ncr is a single Go binary. Point it at any GitHub PR and it builds the
+    narrative, serves it locally, and opens your browser.</p>
+    <ol class="steps">
+
+      <li>
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <h3>Install</h3>
+          <pre class="cmd">brew install justinabrahms/tap/ncr</pre>
+          <p class="note">Or <code>go install github.com/justinabrahms/ncr@latest</code>, or grab a
+          prebuilt binary from <a href="https://github.com/justinabrahms/ncr/releases">Releases</a>.</p>
+        </div>
+      </li>
+
+      <li>
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <h3>Authenticate once</h3>
+          <p class="note">ncr reads the PR through the <a href="https://cli.github.com/">GitHub CLI</a>
+          and calls Anthropic to plan the chapters.</p>
+          <pre class="cmd">gh auth login
+export ANTHROPIC_API_KEY=sk-ant-…</pre>
+        </div>
+      </li>
+
+      <li>
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <h3>Read a PR as a story</h3>
+          <pre class="cmd">ncr supabase/supabase 47266   <span class="c"># build, serve locally, open the browser</span>
+ncr owner/repo 812 --static   <span class="c"># write out/review.html and exit — no server</span>
+ncr .                         <span class="c"># self-review the current branch vs. its merge-base</span></pre>
+          <p class="note">No API key handy? Render a saved diff fully offline:
+          <code>ncr --diff change.diff --plan plan.json</code>.</p>
+        </div>
+      </li>
+
+    </ol>
+  </section>
 </main>
 
 <footer>
