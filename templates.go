@@ -50,7 +50,22 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .diffwrap{position:relative}
 .wstoggle{position:absolute;top:6px;right:10px;z-index:1;font:11px ui-monospace,monospace;padding:2px 8px;border-radius:6px;border:1px solid #3a3f36;background:#1e2019;color:#c9d1d9;cursor:pointer;opacity:.55}
 .wstoggle:hover{opacity:1}
-.diff.ws-hide .l.wsn{display:none}`
+.diff.ws-hide .l.wsn{display:none}
+/* Dark theme: darken the page chrome so it reads coherently around the
+   always-dark monokai code blocks. Additive override only. */
+@media (prefers-color-scheme:dark){
+:root{--fg:#e6edf3;--muted:#8b949e;--bg:#0d1117;--card:#161b22;--line:#30363d}
+.overview{color:#c9d1d9}
+.cov-ok{background:#0f2e1a;color:#56d364}
+.cov-bad{background:#3d1518;color:#f85149}
+.node[open] summary{background:#1c2230}
+.one{color:#c9d1d9}
+.sumfull{color:var(--fg)}
+.sumfull code,.detail code,.chsum code,.overview code{background:#0d1117;color:#e6edf3}
+.detail{color:#c9d1d9}
+.calls a{color:#58a6ff}
+.ext{color:#6e7681}
+}`
 
 var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
