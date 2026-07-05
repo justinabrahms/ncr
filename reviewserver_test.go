@@ -85,6 +85,38 @@ func TestAddCommentValidatesAndPersists(t *testing.T) {
 	}
 }
 
+func TestAddCommentRollsBackOnSaveFailure(t *testing.T) {
+	rs := newTestServer(t)
+	rs.saveFn = func(*ReviewState) error { return fmt.Errorf("disk full") }
+	p, side, line := validAnchor(rs.index)
+	pendingBefore := len(rs.state.Pending)
+	seqBefore := rs.state.Seq
+
+	body := fmt.Sprintf(`{"path":%q,"side":%q,"line":%d,"body":"boom"}`, p, side, line)
+	if rec := rs.do("POST", "/api/comments", body); rec.Code != 500 {
+		t.Fatalf("save failure: want 500, got %d %s", rec.Code, rec.Body.String())
+	}
+	// the in-memory queue and Seq must be unchanged, so a retry can't duplicate
+	if len(rs.state.Pending) != pendingBefore {
+		t.Fatalf("pending changed after failed save: %d → %d", pendingBefore, len(rs.state.Pending))
+	}
+	if rs.state.Seq != seqBefore {
+		t.Fatalf("seq changed after failed save: %d → %d", seqBefore, rs.state.Seq)
+	}
+
+	// once saving recovers, a retry adds exactly one comment (not two)
+	rs.saveFn = saveState
+	if rec := rs.do("POST", "/api/comments", body); rec.Code != 200 {
+		t.Fatalf("retry: want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	if len(rs.state.Pending) != pendingBefore+1 {
+		t.Fatalf("retry should add exactly one comment, got %d", len(rs.state.Pending))
+	}
+	if loaded, _ := loadState("owner/repo", 7); len(loaded.Pending) != pendingBefore+1 {
+		t.Fatalf("persisted queue diverged: %d", len(loaded.Pending))
+	}
+}
+
 func TestEditAndDeleteComment(t *testing.T) {
 	rs := newTestServer(t)
 	p, side, line := validAnchor(rs.index)
