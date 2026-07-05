@@ -30,4 +30,6 @@ reading order**: lower = more "outside" = read first.
 - When genuinely unsure between two layers, pick the **more outside** one and set
   `"layerReason"` to note the ambiguity. Reviewers recover faster from "shown too early"
   than "shown a dependency before its consumer."
+- A DB migration or table/schema definition is layer 4 (adapter) even when it introduces
+  the PR's central noun — foundational is not the same as outside.
 - Framework-generated / vendored / lockfiles → layer 6.

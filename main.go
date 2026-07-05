@@ -198,6 +198,9 @@ func run(argv []string) int {
 	}
 
 	rplan := normalizePlan(raw, index)
+	if demoted := enforceOutsideIn(&rplan); len(demoted) > 0 {
+		logf("⚠ organizer opened inside-out; demoted chapter(s) past their first consumer: %s", strings.Join(demoted, "; "))
+	}
 	// The model may omit title/prNumber; the PR metadata is authoritative anyway.
 	if rplan.Title == "" {
 		rplan.Title = meta.Title
