@@ -13,8 +13,8 @@ inline. You read the request before the database column that serves it.
 
 ![ncr rendering a PR outside-in](docs/img/screenshot.png)
 
-**[See a live example →](https://justinabrahms.github.io/ncr/)** — a rendered review you can
-click through in your browser, no install required.
+**[See live examples →](https://justinabrahms.github.io/ncr/)** — five real PRs rendered as
+narratives you can click through in your browser, no install required.
 
 ## Why
 
