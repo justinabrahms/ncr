@@ -218,8 +218,7 @@ export ANTHROPIC_API_KEY=sk-ant-…</pre>
           <pre class="cmd">ncr supabase/supabase 47266   <span class="c"># build, serve locally, open the browser</span>
 ncr owner/repo 812 --static   <span class="c"># write out/review.html and exit — no server</span>
 ncr .                         <span class="c"># self-review the current branch vs. its merge-base</span></pre>
-          <p class="note">No API key handy? Render a saved diff fully offline:
-          <code>ncr --diff change.diff --plan plan.json</code>.</p>
+          <p class="note">Every run is cached, so re-opening a PR is instant and free.</p>
         </div>
       </li>
 
