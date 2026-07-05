@@ -62,6 +62,61 @@ func TestIndexSplitsAtFunctionBoundaries(t *testing.T) {
 	}
 }
 
+// A deleted line whose content starts with "-- " (SQL/Lua/Haskell comment) shows
+// up as "--- ..." in a unified diff. It must be preserved as a changed line, not
+// consumed as a file header. Symmetric case: an added "++ ..." line -> "+++ ...".
+// Regression for #5.
+func TestIndexPreservesCommentLikeChangedLines(t *testing.T) {
+	diff := `diff --git a/schema.sql b/schema.sql
+index 1111111..2222222 100644
+--- a/schema.sql
++++ b/schema.sql
+@@ -1,4 +1,3 @@
+ CREATE TABLE t (
+--- drop this comment
+-  old_col INT,
++  new_col INT,
+);
+`
+	blocks := indexDiff(diff)
+
+	var all strings.Builder
+	paths := map[string]bool{}
+	for _, b := range blocks {
+		paths[b.Path] = true
+		all.WriteString(b.Text + "\n")
+	}
+	if len(paths) != 1 || !paths["schema.sql"] {
+		t.Fatalf("expected exactly one file schema.sql, got paths %v", paths)
+	}
+	if !strings.Contains(all.String(), "-- drop this comment") {
+		t.Fatalf("deleted comment line was dropped; block text: %q", all.String())
+	}
+
+	// symmetric added-line case: adding Haskell content "++ [x]" appears in the
+	// diff as "+++ [x]" and must not be misparsed as a "+++ " file header.
+	addDiff := `diff --git a/List.hs b/List.hs
+--- a/List.hs
++++ b/List.hs
+@@ -1,2 +1,3 @@
+ xs = base
++++ [x]
+ done
+`
+	var addAll strings.Builder
+	addPaths := map[string]bool{}
+	for _, b := range indexDiff(addDiff) {
+		addPaths[b.Path] = true
+		addAll.WriteString(b.Text + "\n")
+	}
+	if len(addPaths) != 1 || !addPaths["List.hs"] {
+		t.Fatalf("expected exactly one file List.hs, got paths %v", addPaths)
+	}
+	if !strings.Contains(addAll.String(), "++ [x]") {
+		t.Fatalf("added ++ line was dropped or split; block text: %q", addAll.String())
+	}
+}
+
 // Changes wholly inside one function (indented) must NOT be split.
 func TestIndexDoesNotSplitInsideFunction(t *testing.T) {
 	diff := `diff --git a/y.go b/y.go
