@@ -20,6 +20,10 @@ func newTestServer(t *testing.T) *reviewServer {
 
 func (rs *reviewServer) do(method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	// Mirror the browser: review.js sets this on every body-carrying request.
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	rec := httptest.NewRecorder()
 	rs.handler([]byte("PAGE")).ServeHTTP(rec, req)
 	return rec
@@ -106,6 +110,72 @@ func TestEditAndDeleteComment(t *testing.T) {
 	}
 	if rec := rs.do("DELETE", "/api/comments/nope", ""); rec.Code != 404 {
 		t.Fatalf("missing delete: %d", rec.Code)
+	}
+}
+
+// doReq is a lower-level helper that lets a test set arbitrary headers, so we can
+// exercise the CSRF guard (Origin/Host + Content-Type) directly.
+func (rs *reviewServer) doReq(method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	rs.handler([]byte("PAGE")).ServeHTTP(rec, req)
+	return rec
+}
+
+func TestCSRFGuard(t *testing.T) {
+	rs := newTestServer(t)
+	rs.submitFn = func(payload []byte) (string, error) { return "https://x", nil }
+	p, side, line := validAnchor(rs.index)
+	add := fmt.Sprintf(`{"path":%q,"side":%q,"line":%d,"body":"hi"}`, p, side, line)
+
+	// httptest.NewRequest defaults Host to "example.com"; a matching Origin is
+	// same-origin, anything else is cross-origin.
+	const host = "example.com"
+
+	// Cross-origin write is rejected (403) — the classic malicious-page CSRF.
+	rec := rs.doReq("POST", "/api/comments", add, map[string]string{
+		"Content-Type": "application/json",
+		"Origin":       "https://evil.example",
+	})
+	if rec.Code != 403 {
+		t.Fatalf("cross-origin add: want 403, got %d", rec.Code)
+	}
+	// It must not have been persisted.
+	if loaded, _ := loadState("owner/repo", 7); len(loaded.Pending) != 0 {
+		t.Fatalf("cross-origin write leaked into state: %+v", loaded)
+	}
+
+	// Cross-origin submit is likewise rejected.
+	if rec := rs.doReq("POST", "/api/review/submit", `{"verdict":"APPROVE"}`, map[string]string{
+		"Content-Type": "application/json",
+		"Origin":       "https://evil.example",
+	}); rec.Code != 403 {
+		t.Fatalf("cross-origin submit: want 403, got %d", rec.Code)
+	}
+
+	// The "simple request" bypass: no Origin but a non-JSON Content-Type. Blocked
+	// on the Content-Type check (415).
+	if rec := rs.doReq("POST", "/api/review/submit", `{"verdict":"APPROVE"}`, map[string]string{
+		"Content-Type": "text/plain",
+	}); rec.Code != 415 {
+		t.Fatalf("text/plain submit: want 415, got %d", rec.Code)
+	}
+
+	// Same-origin write (correct Origin + JSON) still works.
+	if rec := rs.doReq("POST", "/api/comments", add, map[string]string{
+		"Content-Type": "application/json",
+		"Origin":       "http://" + host,
+	}); rec.Code != 200 {
+		t.Fatalf("same-origin add: want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	// And a same-origin DELETE (no body/Content-Type) passes the guard too.
+	if rec := rs.doReq("DELETE", "/api/comments/c1", "", map[string]string{
+		"Origin": "http://" + host,
+	}); rec.Code != 204 {
+		t.Fatalf("same-origin delete: want 204, got %d", rec.Code)
 	}
 }
 

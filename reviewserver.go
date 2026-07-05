@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -94,14 +95,49 @@ func (rs *reviewServer) handler(html []byte) *http.ServeMux {
 	})
 	mux.HandleFunc("GET /review.js", asset("text/javascript", reviewJS))
 	mux.HandleFunc("GET /review.css", asset("text/css", reviewCSS))
-	mux.HandleFunc("GET /api/state", rs.handleState)
-	mux.HandleFunc("GET /api/debug", rs.handleDebug)
-	mux.HandleFunc("POST /api/comments", rs.handleAdd)
-	mux.HandleFunc("PATCH /api/comments/{id}", rs.handleEdit)
-	mux.HandleFunc("DELETE /api/comments/{id}", rs.handleDelete)
-	mux.HandleFunc("PUT /api/draft", rs.handleDraft)
-	mux.HandleFunc("POST /api/review/submit", rs.handleSubmit)
+	mux.HandleFunc("GET /api/state", guard(rs.handleState))
+	mux.HandleFunc("GET /api/debug", guard(rs.handleDebug))
+	mux.HandleFunc("POST /api/comments", guard(rs.handleAdd))
+	mux.HandleFunc("PATCH /api/comments/{id}", guard(rs.handleEdit))
+	mux.HandleFunc("DELETE /api/comments/{id}", guard(rs.handleDelete))
+	mux.HandleFunc("PUT /api/draft", guard(rs.handleDraft))
+	mux.HandleFunc("POST /api/review/submit", guard(rs.handleSubmit))
 	return mux
+}
+
+// guard is the CSRF defence for the /api/* routes. `ncr serve` binds a localhost
+// port with the user's gh auth behind it, so a malicious web page could otherwise
+// POST a "simple" cross-origin request (text/plain, no preflight) and submit a
+// real GitHub review — the classic local-dev-server CSRF (issue #6). Two cheap,
+// browser-safe checks close it, neither of which the page we serve trips:
+//
+//   - Origin, when present, must match the Host we're serving on. Browsers attach
+//     Origin to every cross-origin request (and to same-origin POST/PUT/PATCH/
+//     DELETE), so a foreign page is always caught here.
+//   - Body-carrying verbs must declare Content-Type: application/json. That is not
+//     a CORS-safelisted value, so a cross-origin fetch of one triggers a preflight
+//     we never answer — blocking the "simple request" bypass even without Origin.
+func guard(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" {
+			if u, err := url.Parse(origin); err != nil || u.Host != r.Host {
+				writeJSONResp(w, 403, map[string]string{"error": "cross-origin request rejected"})
+				return
+			}
+		}
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch:
+			ct := r.Header.Get("Content-Type")
+			if i := strings.IndexByte(ct, ';'); i >= 0 {
+				ct = ct[:i]
+			}
+			if strings.TrimSpace(ct) != "application/json" {
+				writeJSONResp(w, 415, map[string]string{"error": "Content-Type must be application/json"})
+				return
+			}
+		}
+		h(w, r)
+	}
 }
 
 func asset(ct string, body []byte) http.HandlerFunc {
