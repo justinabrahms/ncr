@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,12 +89,6 @@ func run(argv []string) int {
 
 	var repo string
 	var pr int
-	if len(pos) > 0 {
-		repo = pos[0]
-	}
-	if len(pos) > 1 {
-		pr, _ = strconv.Atoi(pos[1])
-	}
 
 	var diffText string
 	var meta Meta
@@ -108,9 +103,18 @@ func run(argv []string) int {
 		diffText = string(b)
 		meta = Meta{Title: filepath.Base(*diff)}
 	} else {
-		if repo == "" || pr == 0 {
-			fmt.Fprintln(os.Stderr, "error: give a repo and PR, e.g. `ncr owner/name 812` (or use --diff)")
+		var err error
+		repo, pr, err = parseTarget(pos)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
 			return 2
+		}
+		// A bare PR number leaves repo empty; infer it from the current checkout
+		// so downstream (ingest cache key, review server, submit) has a slug.
+		if repo == "" {
+			if repo, err = repoSlug(""); err != nil {
+				return fail(err)
+			}
 		}
 		ctx, err := ingestCached(repo, pr, *refresh)
 		if err != nil {
@@ -284,6 +288,52 @@ func reorderArgs(args []string) (flags, pos []string) {
 		}
 	}
 	return flags, pos
+}
+
+// parseTarget interprets the positional args as a review target, returning the
+// owner/repo slug and PR number. It accepts:
+//   - a GitHub PR URL:               https://github.com/owner/repo/pull/812
+//   - owner/repo and a PR number:    owner/repo 812
+//   - a bare PR number:              812  (repo is left empty so the caller can
+//     infer it from the current checkout via repoSlug)
+func parseTarget(pos []string) (repo string, pr int, err error) {
+	switch len(pos) {
+	case 1:
+		a := pos[0]
+		if r, n, ok := parsePRURL(a); ok {
+			return r, n, nil
+		}
+		if n, e := strconv.Atoi(a); e == nil && n > 0 {
+			return "", n, nil
+		}
+		return "", 0, fmt.Errorf("cannot parse %q as a PR URL or PR number", a)
+	case 2:
+		n, e := strconv.Atoi(pos[1])
+		if e != nil || n <= 0 {
+			return "", 0, fmt.Errorf("invalid PR number %q", pos[1])
+		}
+		return pos[0], n, nil
+	default:
+		return "", 0, fmt.Errorf("give a repo and PR (`ncr owner/name 812`), a PR URL, or a bare PR number (or use --diff)")
+	}
+}
+
+// parsePRURL extracts owner/repo and the PR number from a GitHub pull-request
+// URL, e.g. https://github.com/owner/repo/pull/812.
+func parsePRURL(s string) (repo string, pr int, ok bool) {
+	u, err := url.Parse(s)
+	if err != nil || u.Host != "github.com" {
+		return "", 0, false
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 4 || parts[2] != "pull" {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(parts[3])
+	if err != nil || n <= 0 {
+		return "", 0, false
+	}
+	return parts[0] + "/" + parts[1], n, true
 }
 
 func writeJSON(path string, v any) {
