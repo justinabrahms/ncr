@@ -9,7 +9,9 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // LLM plan step — port of ncr/plan.py. Loads the embedded single-shot prompt,
@@ -19,11 +21,49 @@ import (
 
 const (
 	defaultModel   = "claude-sonnet-4-6"
-	anthropicURL   = "https://api.anthropic.com/v1/messages"
 	anthropicVers  = "2023-06-01"
 	defaultMaxToks = 32000
 	schemaVersion  = "toolv4" // bump when the tool/request shape changes (salts the cache key)
+	maxRetries     = 3        // attempts after the first on a retryable status (429/529/5xx)
 )
+
+// Overridable in tests. The plan call can legitimately take minutes, so the
+// timeout is generous; without one http.DefaultClient would hang forever on a
+// stalled connection.
+var (
+	anthropicURL = "https://api.anthropic.com/v1/messages"
+
+	planHTTPClient = &http.Client{Timeout: 5 * time.Minute}
+
+	// Base for exponential backoff between retries (1s, 2s, 4s, …). Tests set
+	// this tiny to keep the retry path fast.
+	retryBaseDelay = 1 * time.Second
+)
+
+// isRetryable reports whether an HTTP status is worth retrying: 429 (rate
+// limit), 529 (overloaded), and any 5xx — all transient per Anthropic's docs.
+// Other 4xx (e.g. 400/401/403) are permanent and must not be retried.
+func isRetryable(status int) bool {
+	return status == 429 || status == 529 || (status >= 500 && status <= 599)
+}
+
+// retryDelay picks how long to wait before the next attempt: honor the
+// Retry-After header (seconds, or an HTTP-date) when present, else exponential
+// backoff from retryBaseDelay for the given attempt (0-based).
+func retryDelay(attempt int, header http.Header) time.Duration {
+	if ra := header.Get("Retry-After"); ra != "" {
+		if secs, err := strconv.Atoi(strings.TrimSpace(ra)); err == nil && secs >= 0 {
+			return time.Duration(secs) * time.Second
+		}
+		if t, err := http.ParseTime(strings.TrimSpace(ra)); err == nil {
+			if d := time.Until(t); d > 0 {
+				return d
+			}
+			return 0
+		}
+	}
+	return retryBaseDelay * time.Duration(1<<attempt)
+}
 
 var (
 	includeRe     = regexp.MustCompile(`\{\{include:\s*([^}]+)\}\}`)
@@ -233,24 +273,43 @@ func runModel(system, user, model string, maxTokens int, tool map[string]any) ([
 	}
 	reqBody, _ := json.Marshal(reqMap)
 
-	req, err := http.NewRequest("POST", anthropicURL, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, Usage{}, err
-	}
-	req.Header.Set("x-api-key", key)
-	req.Header.Set("anthropic-version", anthropicVers)
-	req.Header.Set("content-type", "application/json")
+	// Retry loop: retryable statuses (429/529/5xx) and transport errors get up to
+	// maxRetries more attempts with exponential backoff (honoring Retry-After).
+	// Non-retryable statuses (other 4xx) and success return immediately.
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequest("POST", anthropicURL, bytes.NewReader(reqBody))
+		if err != nil {
+			return nil, Usage{}, err
+		}
+		req.Header.Set("x-api-key", key)
+		req.Header.Set("anthropic-version", anthropicVers)
+		req.Header.Set("content-type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, Usage{}, err
+		resp, err := planHTTPClient.Do(req)
+		if err != nil {
+			// Transport-level failure (timeout, connection reset) — retry.
+			lastErr = err
+			if attempt < maxRetries {
+				time.Sleep(retryDelay(attempt, http.Header{}))
+				continue
+			}
+			return nil, Usage{}, err
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == 200 {
+			return parseModelResponse(body, maxTokens)
+		}
+
+		lastErr = fmt.Errorf("anthropic API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		if !isRetryable(resp.StatusCode) || attempt == maxRetries {
+			return nil, Usage{}, lastErr
+		}
+		time.Sleep(retryDelay(attempt, resp.Header))
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		return nil, Usage{}, fmt.Errorf("anthropic API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return parseModelResponse(body, maxTokens)
+	return nil, Usage{}, lastErr
 }
 
 // parseModelResponse pulls the plan JSON out of a Messages API response: the
