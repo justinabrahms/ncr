@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -47,6 +49,76 @@ func repoSlug(repo string) (string, error) {
 		return "", err
 	}
 	return v.NameWithOwner, nil
+}
+
+func git(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	var out, errb strings.Builder
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(errb.String()))
+	}
+	return out.String(), nil
+}
+
+// getLocalContext builds a PRContext from the working tree instead of GitHub:
+// the diff of the current branch against its merge-base with base, plus the
+// working-tree contents of every changed file. No GitHub round-trip — this backs
+// `ncr .` for pre-PR self-review. Comments are always empty (there's no PR).
+func getLocalContext(base string) (PRContext, error) {
+	var ctx PRContext
+	root, err := git("rev-parse", "--show-toplevel")
+	if err != nil {
+		return ctx, err
+	}
+	root = strings.TrimSpace(root)
+	mergeBase, err := git("merge-base", base, "HEAD")
+	if err != nil {
+		return ctx, err
+	}
+	mergeBase = strings.TrimSpace(mergeBase)
+	if ctx.Diff, err = git("diff", mergeBase+"...HEAD"); err != nil {
+		return ctx, err
+	}
+	ctx.Meta = Meta{Title: fmt.Sprintf("%s...HEAD (local)", base)}
+	ctx.Files = map[string]string{}
+	names, err := git("diff", "--name-only", mergeBase+"...HEAD")
+	if err != nil {
+		return ctx, err
+	}
+	for _, path := range changedPaths(names) {
+		ctx.Files[path] = readWorkingTreeFile(root, path)
+	}
+	return ctx, nil
+}
+
+// changedPaths splits `git diff --name-only` output into non-empty paths.
+func changedPaths(nameOnly string) []string {
+	var paths []string
+	for _, line := range strings.Split(nameOnly, "\n") {
+		if p := strings.TrimSpace(line); p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
+}
+
+// readWorkingTreeFile reads a changed file's current on-disk contents, mirroring
+// fetchFile's size/binary guards so the model sees the same shape of context it
+// would for a GitHub PR.
+func readWorkingTreeFile(root, path string) string {
+	raw, err := os.ReadFile(filepath.Join(root, path))
+	if err != nil {
+		return ""
+	}
+	if len(raw) > maxFileBytes {
+		return fmt.Sprintf("(file too large: %d bytes; omitted from context)", len(raw))
+	}
+	if !utf8.Valid(raw) {
+		return "(binary file omitted)"
+	}
+	return string(raw)
 }
 
 func getPRContext(pr int, repo string, fetchFiles bool) (PRContext, error) {
