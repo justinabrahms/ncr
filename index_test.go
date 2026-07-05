@@ -54,6 +54,16 @@ func TestEveryChangedLineCoveredOnce(t *testing.T) {
 	}
 }
 
+func TestEmptyDiffYieldsZeroBlocks(t *testing.T) {
+	for _, in := range []string{"", "\n", "   \n"} {
+		idx := buildIndex(in)
+		if len(idx.Blocks) != 0 || len(idx.BlockIDs) != 0 {
+			t.Fatalf("empty diff %q yielded %d blocks / %d ids, want 0/0",
+				in, len(idx.Blocks), len(idx.BlockIDs))
+		}
+	}
+}
+
 func TestPlaceBlockCoords(t *testing.T) {
 	for _, b := range indexDiff(sampleDiff(t)) {
 		if strings.Contains(b.Text, "func (h *OrderHandler) Place") {
