@@ -1,0 +1,20 @@
+slug: gitea-job-summaries
+repo: go-gitea/gitea
+pr: 37500
+url: https://github.com/go-gitea/gitea/pull/37500
+title: "feat(actions): add job summaries (GITHUB_STEP_SUMMARY)"
+language: Go
+license: MIT
+merged: 2026-06-08
+stats: "18 files · +683 −23"
+pain: >-
+  GitHub opens on the 207-line storage model, then two DB migration files and a
+  locale string — all before any code that uses them. The runner-upload
+  endpoint where a summary actually enters the system is file 6 of 18.
+relief: >-
+  ncr starts at the capability negotiation between Gitea and its runners, then
+  the upload endpoint, the web view, and the Vue panel — the data model and
+  migration arrive only after you have met every one of their consumers.
+notice: >-
+  A genuinely full-stack change (runner API → DB → web → UI) read as one story
+  instead of eighteen alphabetized files.

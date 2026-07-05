@@ -1,0 +1,428 @@
+{
+  "title": "feat(actions): add job summaries (GITHUB_STEP_SUMMARY)",
+  "prNumber": 37500,
+  "overview": "This PR adds GitHub-style job summaries (`GITHUB_STEP_SUMMARY`) to Gitea Actions. Reading path: start with the runner capability advertisement in `Declare` (the feature-negotiation contract), then the upload endpoint that runners call, then the server-side rendering that surfaces summaries in the run view, then the frontend that displays them, and finally the data model, migration, and cleanup that underpin everything.",
+  "chapters": [
+    {
+      "id": "",
+      "title": "Runner capability advertisement — X-Gitea-Actions-Capabilities header",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c0-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c0-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "PUT /api/actions_pipeline/…/steps/{step_index}/summary — runner upload endpoint",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c1-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c1-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Run Summary view — rendering job summaries in ViewPost",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c2-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c2-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Frontend — job summary panel in RepoActionView",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c3-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-2",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-3",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-4",
+          "depth": 0
+        },
+        {
+          "unit": "u-c3-5",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "ActionRunJobSummary data model, upsert logic, and migration",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c4-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-1",
+          "depth": 0
+        },
+        {
+          "unit": "u-c4-2",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Lifecycle cleanup — delete summaries with run and repo",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c5-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c5-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Tests — upload endpoint and view scoping",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c6-0",
+          "depth": 0
+        },
+        {
+          "unit": "u-c6-1",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "id": "",
+      "title": "Devtest mock — preview job summaries in the UI",
+      "summary": "",
+      "nodes": [
+        {
+          "unit": "u-c7-0",
+          "depth": 0
+        }
+      ]
+    }
+  ],
+  "orphans": null,
+  "units": [
+    {
+      "id": "u-c0-0",
+      "file": "models/actions/run_job_summary.go",
+      "symbol": "RunnerCapabilities / JobSummaryCapability",
+      "layer": 1,
+      "layerReason": "Public contract — this is the handshake that lets runners know they can upload summaries",
+      "summary": "Defines the capability constant and the helper that serialises it; this is what gets advertised to runners.",
+      "blocks": [
+        "b004",
+        "b005"
+      ]
+    },
+    {
+      "id": "u-c0-1",
+      "file": "routers/api/actions/runner/runner.go",
+      "symbol": "Service.Declare",
+      "layer": 1,
+      "layerReason": "Entry point for runner registration; the header is the feature-negotiation surface",
+      "summary": "After building the DeclareResponse, sets `X-Gitea-Actions-Capabilities` on the response header so runners can discover job-summary support without a proto bump.",
+      "blocks": [
+        "b028",
+        "b029"
+      ]
+    },
+    {
+      "id": "u-c1-0",
+      "file": "routers/api/actions/artifacts.go",
+      "symbol": "jobSummaryRouteBase / ArtifactsRoutes wiring",
+      "layer": 2,
+      "layerReason": "Route registration — where the endpoint lives in the HTTP router",
+      "summary": "Registers the new PUT route alongside the existing artifacts routes, reusing the same ArtifactContexter middleware (token auth, task loading).",
+      "blocks": [
+        "b021",
+        "b025"
+      ]
+    },
+    {
+      "id": "u-c1-1",
+      "file": "routers/api/actions/job_summary.go",
+      "symbol": "uploadJobSummary / normalizeJobSummaryContentType",
+      "layer": 2,
+      "layerReason": "Handler — the core request processing logic",
+      "summary": "Validates run-ID, job-ID, step-index (must exist in DB), and content-type; reads body up to the per-step limit; delegates to the model for upsert or delete (empty body clears). Content-type normalisation accepts blank or `application/octet-stream` as markdown for runner compatibility.",
+      "blocks": [
+        "b022",
+        "b023",
+        "b024",
+        "b026",
+        "b027"
+      ]
+    },
+    {
+      "id": "u-c2-0",
+      "file": "routers/web/repo/actions/view.go",
+      "symbol": "ViewResponse.JobSummaries / ViewJobSummary",
+      "layer": 3,
+      "layerReason": "DTO — shapes the JSON the frontend receives",
+      "summary": "Adds `jobSummaries` to the run state payload and defines the `ViewJobSummary` struct that carries per-job rendered HTML.",
+      "blocks": [
+        "b033",
+        "b034"
+      ]
+    },
+    {
+      "id": "u-c2-1",
+      "file": "routers/web/repo/actions/view.go",
+      "symbol": "fillViewRunResponseSummary — summary rendering",
+      "layer": 3,
+      "layerReason": "Application layer — orchestrates DB query and markdown rendering",
+      "summary": "Queries summaries scoped by attempt; on the single-job view passes `job` path param to filter server-side (avoids re-rendering every job on each 1s poll). Concatenates each step's markdown independently to avoid bleed between steps, groups by job, and appends rendered HTML to the response.",
+      "blocks": [
+        "b035",
+        "b036"
+      ]
+    },
+    {
+      "id": "u-c3-0",
+      "file": "web_src/js/modules/gitea-actions.ts",
+      "symbol": "ActionsJobSummary type / ActionsRun.jobSummaries",
+      "layer": 4,
+      "layerReason": "Frontend type definitions",
+      "summary": "Defines the `ActionsJobSummary` TypeScript type and adds the optional `jobSummaries` array to `ActionsRun`.",
+      "blocks": [
+        "b066",
+        "b067"
+      ]
+    },
+    {
+      "id": "u-c3-1",
+      "file": "web_src/js/components/ActionRunView.ts",
+      "symbol": "createEmptyActionsRun — jobSummaries initialisation",
+      "layer": 4,
+      "layerReason": "Frontend initialisation",
+      "summary": "Seeds `jobSummaries: []` in the empty-run factory so the computed property never sees undefined before the first poll response.",
+      "blocks": [
+        "b050"
+      ]
+    },
+    {
+      "id": "u-c3-2",
+      "file": "web_src/js/components/RepoActionView.vue",
+      "symbol": "visibleJobSummaries / job-summary-section template",
+      "layer": 4,
+      "layerReason": "Frontend rendering logic",
+      "summary": "A computed property filters summaries by `jobId` prop (no-op on the run view); the template renders a new panel below the existing job/summary view, iterating job summaries as cards with `v-html` for the server-rendered markdown.",
+      "blocks": [
+        "b051",
+        "b052"
+      ]
+    },
+    {
+      "id": "u-c3-3",
+      "file": "web_src/js/components/RepoActionView.vue",
+      "symbol": "action-view-right panel styles",
+      "layer": 4,
+      "layerReason": "Frontend styling",
+      "summary": "Wraps the existing right column in `.action-view-right-panel` (replaces the old `.action-view-right` selector on button overrides), introduces `.job-summary-section` and its sub-elements so both panels stack vertically with a gap.",
+      "blocks": [
+        "b053",
+        "b054",
+        "b055",
+        "b056",
+        "b057",
+        "b058",
+        "b059",
+        "b060",
+        "b061",
+        "b062",
+        "b063",
+        "b064"
+      ]
+    },
+    {
+      "id": "u-c3-4",
+      "file": "templates/repo/actions/view_component.tmpl",
+      "symbol": "locale wiring — job_summaries string",
+      "layer": 4,
+      "layerReason": "i18n plumbing",
+      "summary": "Passes the `data-locale-job-summaries` attribute from the template into the Vue app's locale prop.",
+      "detail": "b039 is the Go template data attribute; b065 reads it in the JS initialiser.",
+      "blocks": [
+        "b039",
+        "b065"
+      ]
+    },
+    {
+      "id": "u-c3-5",
+      "file": "options/locale/locale_en-US.json",
+      "symbol": "locale_en-US.json — actions.runs.job_summaries",
+      "layer": 4,
+      "layerReason": "i18n string",
+      "summary": "Adds the English locale string for the panel header.",
+      "blocks": [
+        "b020"
+      ]
+    },
+    {
+      "id": "u-c4-0",
+      "file": "models/actions/run_job_summary.go",
+      "symbol": "ActionRunJobSummary struct / init",
+      "layer": 5,
+      "layerReason": "Data model",
+      "summary": "Defines the ORM model. `ContentSize` is stored explicitly (not computed) because `LENGTH()` counts characters in most DB engines, which would let multibyte UTF-8 bypass the aggregate byte cap.",
+      "blocks": [
+        "b001",
+        "b002",
+        "b003",
+        "b006",
+        "b007"
+      ]
+    },
+    {
+      "id": "u-c4-1",
+      "file": "models/actions/run_job_summary.go",
+      "symbol": "Get/Upsert/Delete/List/sumOtherSizes",
+      "layer": 5,
+      "layerReason": "Data access layer",
+      "summary": "Full CRUD surface. The aggregate-size check is explicitly noted as best-effort (no row-level lock). `upsertActionRunJobSummary` has per-dialect SQL because xorm lacks a portable INSERT … ON CONFLICT. `ListActionRunJobSummaries` accepts an optional `jobID` for the single-job scoping described above.",
+      "blocks": [
+        "b008",
+        "b009",
+        "b010",
+        "b011",
+        "b012",
+        "b013",
+        "b014"
+      ]
+    },
+    {
+      "id": "u-c4-2",
+      "file": "models/migrations/migrations.go",
+      "symbol": "migration 336 — AddActionRunJobSummaryTable",
+      "layer": 5,
+      "layerReason": "Schema migration",
+      "summary": "Creates the new table; the struct is duplicated inline (migration convention) to decouple it from future model changes.",
+      "blocks": [
+        "b015",
+        "b016",
+        "b017",
+        "b018",
+        "b019"
+      ]
+    },
+    {
+      "id": "u-c5-0",
+      "file": "services/actions/cleanup.go",
+      "symbol": "DeleteRun — include ActionRunJobSummary",
+      "layer": 5,
+      "layerReason": "Cleanup/lifecycle",
+      "summary": "Adds summary rows to the batch-delete list when a run is deleted.",
+      "blocks": [
+        "b037"
+      ]
+    },
+    {
+      "id": "u-c5-1",
+      "file": "services/repository/delete.go",
+      "symbol": "DeleteRepositoryDirectly — include ActionRunJobSummary",
+      "layer": 5,
+      "layerReason": "Cleanup/lifecycle",
+      "summary": "Adds summary rows to the bulk-delete call when an entire repository is deleted.",
+      "blocks": [
+        "b038"
+      ]
+    },
+    {
+      "id": "u-c6-0",
+      "file": "tests/integration/api_actions_artifact_test.go",
+      "symbol": "TestActionsJobSummaryUpload",
+      "layer": 6,
+      "layerReason": "Integration tests for the upload API",
+      "summary": "New integration test covering: happy-path upsert and timestamp refresh, multi-step listing order, content-type rejection, per-step and aggregate size limits, job/run/step-index mismatch errors, and empty-body clear. Introduces `getArtifactFixtureTask` and `ensureArtifactFixtureTaskSteps` helpers because the upload handler validates step existence.",
+      "blocks": [
+        "b044",
+        "b045",
+        "b046",
+        "b047",
+        "b048",
+        "b049"
+      ]
+    },
+    {
+      "id": "u-c6-1",
+      "file": "tests/integration/actions_route_test.go",
+      "symbol": "testActionsRouteForIDBasedURL — ViewResponse summary scoping",
+      "layer": 6,
+      "layerReason": "Integration tests for the view API",
+      "summary": "Extends the existing route test to seed summaries for two jobs, then asserts the run view returns both while the single-job view returns only the requested job's summary (the key server-side scoping invariant).",
+      "blocks": [
+        "b040",
+        "b041",
+        "b042",
+        "b043"
+      ]
+    },
+    {
+      "id": "u-c7-0",
+      "file": "routers/web/devtest/mock_actions.go",
+      "symbol": "MockActionsRunsJobs — jobSummaries fixture",
+      "layer": 6,
+      "layerReason": "Developer tooling",
+      "summary": "Injects two mock `ViewJobSummary` entries (with rendered markdown) into the devtest response so the Summary panel can be previewed without a real runner.",
+      "blocks": [
+        "b030",
+        "b031",
+        "b032"
+      ]
+    }
+  ],
+  "edges": [],
+  "coverage": {
+    "ok": true,
+    "counts": {
+      "indexed": 67,
+      "placed": 67
+    },
+    "missing": [],
+    "duplicated": [],
+    "unplacedUnits": [],
+    "danglingRefs": [],
+    "commentGaps": [],
+    "repaired": false
+  }
+}
