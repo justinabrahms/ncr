@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Deterministic reconciler — the completeness guarantee, now at LINE granularity so
@@ -88,6 +89,56 @@ func reconcile(plan *ReadingPlan, index Index, commentBlocks []string) {
 	cov.Counts.Indexed = len(index.Blocks)
 	cov.Counts.Placed = placed
 	plan.Coverage = cov
+}
+
+// coverageIssues returns a human-readable phrase for each failed sub-check of a
+// Coverage, in a stable order. A block being "missing" is auto-repaired into the
+// Unplaced chapter, so it is described separately (see hasUnplacedChapter). The
+// slice is empty when cov.OK is true.
+func coverageIssues(cov *Coverage) []string {
+	var out []string
+	if n := len(cov.Missing); n > 0 {
+		out = append(out, fmt.Sprintf("%d unplaced (auto-repaired)", n))
+	}
+	if n := len(cov.DanglingRefs); n > 0 {
+		out = append(out, fmt.Sprintf("%d dangling block ref%s", n, plural(n)))
+	}
+	if n := len(cov.Duplicated); n > 0 {
+		out = append(out, fmt.Sprintf("%d duplicated block%s", n, plural(n)))
+	}
+	if n := len(cov.UnplacedUnits); n > 0 {
+		out = append(out, fmt.Sprintf("%d unplaced unit%s", n, plural(n)))
+	}
+	if n := len(cov.CommentGaps); n > 0 {
+		out = append(out, fmt.Sprintf("%d comment gap%s", n, plural(n)))
+	}
+	return out
+}
+
+// coverageStatus builds the one-line "⚠ …" status describing why coverage is
+// not OK. Returns "✓ complete" when cov.OK.
+func coverageStatus(cov *Coverage) string {
+	if cov.OK {
+		return "✓ complete"
+	}
+	issues := coverageIssues(cov)
+	if len(issues) == 0 {
+		return "⚠ coverage incomplete"
+	}
+	return "⚠ " + strings.Join(issues, ", ")
+}
+
+// hasUnplacedChapter reports whether a visible "Unplaced" chapter was created,
+// which only happens when there were missing blocks to auto-repair.
+func hasUnplacedChapter(cov *Coverage) bool {
+	return len(cov.Missing) > 0
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // computeCover tallies, per block, how many units cover each changed line. Bad

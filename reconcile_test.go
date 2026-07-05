@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -87,5 +88,49 @@ func TestCommentAnchorGapFlagged(t *testing.T) {
 	reconcile(&plan, idx, []string{"b999"})
 	if !reflect.DeepEqual(plan.Coverage.CommentGaps, []string{"b999"}) {
 		t.Fatalf("comment gap not flagged: %+v", plan.Coverage.CommentGaps)
+	}
+}
+
+// Issue #9: when coverage fails for a non-missing reason (dangling refs,
+// duplicated blocks, unplaced units, comment gaps) the status message must name
+// the actual failure and must not claim things were "unplaced (auto-repaired)"
+// nor point at a nonexistent Unplaced chapter.
+func TestCoverageStatusNonMissingReasons(t *testing.T) {
+	cov := &Coverage{
+		OK:           false,
+		DanglingRefs: []string{"b001#2-3", "b004#1"},
+		Duplicated:   []string{"b002"},
+	}
+	status := coverageStatus(cov)
+	if strings.Contains(status, "unplaced") || strings.Contains(status, "auto-repaired") {
+		t.Fatalf("status wrongly mentions unplaced/auto-repaired: %q", status)
+	}
+	if !strings.Contains(status, "2 dangling block refs") {
+		t.Fatalf("status missing dangling count: %q", status)
+	}
+	if !strings.Contains(status, "1 duplicated block") {
+		t.Fatalf("status missing duplicated count: %q", status)
+	}
+	if hasUnplacedChapter(cov) {
+		t.Fatalf("no Unplaced chapter should be referenced with zero missing blocks")
+	}
+}
+
+// The missing-blocks case still reports auto-repair and points at the Unplaced
+// chapter.
+func TestCoverageStatusMissingBlocks(t *testing.T) {
+	cov := &Coverage{OK: false, Missing: []string{"b006"}, Repaired: true}
+	status := coverageStatus(cov)
+	if !strings.Contains(status, "1 unplaced (auto-repaired)") {
+		t.Fatalf("missing-blocks status wrong: %q", status)
+	}
+	if !hasUnplacedChapter(cov) {
+		t.Fatalf("Unplaced chapter should be referenced when blocks are missing")
+	}
+}
+
+func TestCoverageStatusOK(t *testing.T) {
+	if s := coverageStatus(&Coverage{OK: true}); s != "✓ complete" {
+		t.Fatalf("OK status wrong: %q", s)
 	}
 }
