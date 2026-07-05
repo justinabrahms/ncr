@@ -2,8 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestBuildPromptIsDeterministic(t *testing.T) {
@@ -95,6 +99,110 @@ func TestParseModelResponseTextFallback(t *testing.T) {
 	}
 	if string(b) != `{"chapters":[]}` {
 		t.Fatalf("got %s", b)
+	}
+}
+
+// withTestServer points runModel at a stub server with fast backoff, restoring
+// the package globals afterward.
+func withTestServer(t *testing.T, h http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(h)
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	origURL, origDelay := anthropicURL, retryBaseDelay
+	anthropicURL = srv.URL
+	retryBaseDelay = time.Millisecond
+	t.Cleanup(func() {
+		srv.Close()
+		anthropicURL = origURL
+		retryBaseDelay = origDelay
+	})
+	return srv
+}
+
+func okBody() string {
+	return `{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":1},` +
+		`"content":[{"type":"tool_use","name":"submit_reading_plan","input":{"overview":"o","chapters":[]}}]}`
+}
+
+func TestRunModelRetriesOn429ThenSucceeds(t *testing.T) {
+	var calls int32
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&calls, 1)
+		if n == 1 {
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(429)
+			w.Write([]byte(`{"error":"rate limited"}`))
+			return
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(okBody()))
+	})
+
+	out, _, err := runModel("sys", "usr", "m", 100, nil)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls (429 then 200), got %d", got)
+	}
+	var m map[string]any
+	if json.Unmarshal(out, &m); m["overview"] != "o" {
+		t.Fatalf("plan not returned after retry: %s", out)
+	}
+}
+
+func TestRunModelRetriesOn529AndHonorsRetryAfter(t *testing.T) {
+	var calls int32
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			w.WriteHeader(529) // overloaded
+			return
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(okBody()))
+	})
+	if _, _, err := runModel("sys", "usr", "m", 100, nil); err != nil {
+		t.Fatalf("expected 529 retry to succeed, got %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls, got %d", got)
+	}
+}
+
+func TestRunModelDoesNotRetryOn400(t *testing.T) {
+	var calls int32
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(400)
+		w.Write([]byte(`{"error":"bad request"}`))
+	})
+	if _, _, err := runModel("sys", "usr", "m", 100, nil); err == nil {
+		t.Fatal("expected error on 400")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("400 must not retry: got %d calls", got)
+	}
+}
+
+func TestRunModelGivesUpAfterMaxRetries(t *testing.T) {
+	var calls int32
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(503)
+	})
+	if _, _, err := runModel("sys", "usr", "m", 100, nil); err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+	if got := atomic.LoadInt32(&calls); got != maxRetries+1 {
+		t.Fatalf("expected %d attempts, got %d", maxRetries+1, got)
+	}
+}
+
+func TestRetryDelayHonorsRetryAfterSeconds(t *testing.T) {
+	h := http.Header{}
+	h.Set("Retry-After", "2")
+	if d := retryDelay(0, h); d != 2*time.Second {
+		t.Fatalf("expected 2s from Retry-After, got %v", d)
 	}
 }
 
