@@ -29,6 +29,7 @@ type reviewServer struct {
 	anchors  map[string]bool                      // valid (path,side,line) comment positions
 	nowFn    func() string                        // injectable for tests
 	submitFn func(payload []byte) (string, error) // posts the review; gh by default
+	saveFn   func(*ReviewState) error             // persists state; injectable for tests
 }
 
 func newReviewServer(repo string, pr int, headSha string, index Index, plan ReadingPlan, rawPlan json.RawMessage, model string) (*reviewServer, error) {
@@ -55,6 +56,7 @@ func newReviewServer(repo string, pr int, headSha string, index Index, plan Read
 		anchors:  buildAnchorSet(index),
 		nowFn:    func() string { return time.Now().UTC().Format(time.RFC3339) },
 		submitFn: ghSubmit(repo, pr),
+		saveFn:   saveState,
 	}
 	return rs, nil
 }
@@ -215,7 +217,12 @@ func (rs *reviewServer) handleAdd(w http.ResponseWriter, r *http.Request) {
 	c.ID = fmt.Sprintf("c%d", rs.state.Seq)
 	c.CreatedAt = rs.nowFn()
 	rs.state.Pending = append(rs.state.Pending, c)
-	if err := saveState(rs.state); err != nil {
+	if err := rs.saveFn(rs.state); err != nil {
+		// Roll back the staged append and Seq bump so the queue matches what was
+		// persisted. Without this a client retry after the 500 duplicates the
+		// comment, and the next successful mutation persists the divergent queue.
+		rs.state.Pending = rs.state.Pending[:len(rs.state.Pending)-1]
+		rs.state.Seq--
 		writeJSONResp(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
@@ -235,8 +242,13 @@ func (rs *reviewServer) handleEdit(w http.ResponseWriter, r *http.Request) {
 	defer rs.mu.Unlock()
 	for i := range rs.state.Pending {
 		if rs.state.Pending[i].ID == id {
+			old := rs.state.Pending[i].Body
 			rs.state.Pending[i].Body = patch.Body
-			_ = saveState(rs.state)
+			if err := rs.saveFn(rs.state); err != nil {
+				rs.state.Pending[i].Body = old
+				writeJSONResp(w, 500, map[string]string{"error": err.Error()})
+				return
+			}
 			writeJSONResp(w, 200, rs.state.Pending[i])
 			return
 		}
@@ -248,21 +260,28 @@ func (rs *reviewServer) handleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	kept := rs.state.Pending[:0]
+	old := rs.state.Pending
+	// Build a fresh slice (don't reuse old's backing array) so a save failure can
+	// restore the original queue intact.
+	kept := make([]ReviewComment, 0, len(old))
 	found := false
-	for _, c := range rs.state.Pending {
+	for _, c := range old {
 		if c.ID == id {
 			found = true
 			continue
 		}
 		kept = append(kept, c)
 	}
-	rs.state.Pending = kept
 	if !found {
 		writeJSONResp(w, 404, map[string]string{"error": "not found"})
 		return
 	}
-	_ = saveState(rs.state)
+	rs.state.Pending = kept
+	if err := rs.saveFn(rs.state); err != nil {
+		rs.state.Pending = old
+		writeJSONResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
 	w.WriteHeader(204)
 }
 
@@ -274,8 +293,13 @@ func (rs *reviewServer) handleDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+	old := rs.state.Draft
 	rs.state.Draft = d
-	_ = saveState(rs.state)
+	if err := rs.saveFn(rs.state); err != nil {
+		rs.state.Draft = old
+		writeJSONResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSONResp(w, 200, d)
 }
 
@@ -292,8 +316,13 @@ func (rs *reviewServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
+	oldDraft := rs.state.Draft
 	rs.state.Draft = ReviewDraft{Body: req.Body, Verdict: req.Verdict}
-	_ = saveState(rs.state)
+	if err := rs.saveFn(rs.state); err != nil {
+		rs.state.Draft = oldDraft
+		writeJSONResp(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
 
 	invalid, errs := rs.validate(req.Verdict, req.Body)
 	if req.DryRun {
@@ -318,7 +347,13 @@ func (rs *reviewServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	})
 	rs.state.Pending = nil
 	rs.state.Draft = ReviewDraft{Verdict: "COMMENT"}
-	_ = saveState(rs.state)
+	if err := rs.saveFn(rs.state); err != nil {
+		// The review is already posted to GitHub, so the in-memory state now
+		// matches reality. Rolling back (or reporting failure so the client
+		// retries) would re-post the same review — worse than a stale file.
+		// Keep the state and surface the persistence problem as a warning.
+		logf("warning: review posted (%s) but state save failed: %v", url, err)
+	}
 	writeJSONResp(w, 200, map[string]any{"reviewUrl": url, "round": round})
 }
 
