@@ -40,6 +40,45 @@ func TestStaticOmitsInteractiveAssets(t *testing.T) {
 	}
 }
 
+// anchorComments must match coordinate spaces: a live comment's `line` is a
+// NEW-file position (compare vs NewStart/NewLines); a fallback `original_line`
+// (used when `line` is null, e.g. outdated/LEFT-side comments) is an OLD-file
+// position (compare vs OldStart/OldLines).
+func TestAnchorCommentsCoordinateSpaces(t *testing.T) {
+	ptr := func(n int) *int { return &n }
+	// Two blocks for the same file whose old/new line ranges do NOT overlap,
+	// so anchoring against the wrong coordinate space would land on the wrong
+	// block (or miss entirely).
+	idx := Index{Blocks: []Block{
+		{
+			BlockID:  "b001",
+			Path:     "foo.go",
+			OldStart: ptr(10), OldLines: 5, // old lines 10..14
+			NewStart: ptr(100), NewLines: 5, // new lines 100..104
+		},
+		{
+			BlockID:  "b002",
+			Path:     "foo.go",
+			OldStart: ptr(50), OldLines: 5, // old lines 50..54
+			NewStart: ptr(200), NewLines: 5, // new lines 200..204
+		},
+	}}
+
+	// A normal comment anchors via NewStart/NewLines.
+	got := anchorComments(idx, []Comment{{Path: "foo.go", Line: ptr(201)}})
+	if len(got) != 1 || got[0] != "b002" {
+		t.Fatalf("live line comment: got %v, want [b002]", got)
+	}
+
+	// A comment with null `line` and an OLD-file `original_line` anchors via
+	// OldStart/OldLines — here old line 12 belongs to b001. (Under the old
+	// bug it would be compared against NewStart 100/200 and miss entirely.)
+	got = anchorComments(idx, []Comment{{Path: "foo.go", OriginalLine: ptr(12)}})
+	if len(got) != 1 || got[0] != "b001" {
+		t.Fatalf("outdated original_line comment: got %v, want [b001]", got)
+	}
+}
+
 // buildAnchorSet must accept every rendered anchor (add/context RIGHT, del LEFT).
 func TestAnchorSetMatchesRenderedLines(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))

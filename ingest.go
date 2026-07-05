@@ -114,24 +114,35 @@ func fetchFile(repo, path, ref string) string {
 func anchorComments(index Index, comments []Comment) []string {
 	var hits []string
 	for _, c := range comments {
+		// A live comment's `line` is a NEW-file line number; when it's null we
+		// fall back to `original_line`, which is an OLD-file line number. Each
+		// must be compared against the matching coordinate space of the block.
 		line := 0
+		oldSide := false
 		if c.Line != nil {
 			line = *c.Line
 		} else if c.OriginalLine != nil {
 			line = *c.OriginalLine
+			oldSide = true
 		}
 		if c.Path == "" || line == 0 {
 			continue
 		}
 		for _, b := range index.Blocks {
-			if b.Path != c.Path || b.NewStart == nil {
+			if b.Path != c.Path {
 				continue
 			}
-			span := b.NewLines
+			start, span := b.NewStart, b.NewLines
+			if oldSide {
+				start, span = b.OldStart, b.OldLines
+			}
+			if start == nil {
+				continue
+			}
 			if span < 1 {
 				span = 1
 			}
-			if *b.NewStart <= line && line < *b.NewStart+span {
+			if *start <= line && line < *start+span {
 				hits = append(hits, b.BlockID)
 				break
 			}
