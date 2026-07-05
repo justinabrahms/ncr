@@ -50,26 +50,35 @@ func cleanPath(newPath, oldPath string) string {
 	return p
 }
 
+// splitFiles is stateful like git's own diff parser: `---` / `+++` / mode lines
+// are only recognized as file headers while between a `diff --git` header and the
+// file's first hunk (`@@`). Once inside a hunk body every line is content, so a
+// changed line whose content starts with `-- ` or `++ ` (SQL/Lua/Haskell comments,
+// `++ [x]`, etc.) is preserved instead of being misparsed as a header. See #5.
 func splitFiles(diff string) []fileDiff {
 	var files []fileDiff
 	cur := -1
 	oldPath, changeType := "", "modified"
+	inHunk := false // true once the current file's first hunk has started
 	for _, line := range strings.Split(diff, "\n") {
 		switch {
 		case strings.HasPrefix(line, "diff --git"):
-			cur, oldPath, changeType = -1, "", "modified"
-		case strings.HasPrefix(line, "new file mode"):
+			cur, oldPath, changeType, inHunk = -1, "", "modified", false
+		case !inHunk && strings.HasPrefix(line, "new file mode"):
 			changeType = "added"
-		case strings.HasPrefix(line, "deleted file mode"):
+		case !inHunk && strings.HasPrefix(line, "deleted file mode"):
 			changeType = "deleted"
-		case strings.HasPrefix(line, "rename from"), strings.HasPrefix(line, "rename to"):
+		case !inHunk && (strings.HasPrefix(line, "rename from") || strings.HasPrefix(line, "rename to")):
 			changeType = "renamed"
-		case strings.HasPrefix(line, "--- "):
+		case !inHunk && strings.HasPrefix(line, "--- "):
 			oldPath = strings.TrimSpace(line[4:])
-		case strings.HasPrefix(line, "+++ "):
+		case !inHunk && strings.HasPrefix(line, "+++ "):
 			files = append(files, fileDiff{path: cleanPath(strings.TrimSpace(line[4:]), oldPath), changeType: changeType})
 			cur = len(files) - 1
 		default:
+			if hunkRe.MatchString(line) {
+				inHunk = true
+			}
 			if cur >= 0 {
 				files[cur].body = append(files[cur].body, line)
 			}
