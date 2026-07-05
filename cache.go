@@ -12,15 +12,28 @@ import (
 // Content-addressed cache — port of ncr/cache.py. Lets you iterate on presentation
 // without re-spending API credits: the plan is keyed by a hash of the exact
 // prompt, so an unchanged PR + prompt is a hit and makes no API call. Ingest is
-// cached by repo#pr. Dir: $NCR_CACHE_DIR or ./.ncr-cache; --refresh busts it.
+// cached by repo#pr. Dir: $NCR_CACHE_DIR or os.UserCacheDir()/ncr (e.g.
+// ~/.cache/ncr); --refresh busts it.
 
 var cacheSanitize = regexp.MustCompile(`[^A-Za-z0-9._#-]`)
 
-func cacheDir() string {
-	d := os.Getenv("NCR_CACHE_DIR")
-	if d == "" {
-		d = ".ncr-cache"
+// resolveCacheDir returns the cache directory without creating it. Precedence:
+// $NCR_CACHE_DIR wins; otherwise os.UserCacheDir()/ncr (keeping the cache out of
+// the CWD so it can't be accidentally committed). Falls back to ./.ncr-cache if
+// the user cache dir can't be determined.
+func resolveCacheDir() string {
+	if d := os.Getenv("NCR_CACHE_DIR"); d != "" {
+		return d
 	}
+	base, err := os.UserCacheDir()
+	if err != nil || base == "" {
+		return ".ncr-cache"
+	}
+	return filepath.Join(base, "ncr")
+}
+
+func cacheDir() string {
+	d := resolveCacheDir()
 	_ = os.MkdirAll(d, 0o755)
 	return d
 }

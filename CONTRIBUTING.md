@@ -54,7 +54,7 @@ ingest (gh) → index → plan (LLM) → normalize → reconcile → render → 
 | `normalize.go` | coerce flexible model JSON into the canonical plan |
 | `plan.go` | build the prompt + call the Anthropic Messages API |
 | `ingest.go` | pull the PR via `gh` |
-| `cache.go` | content-addressed cache (ingest + plan), under `$NCR_CACHE_DIR` or `./.ncr-cache` |
+| `cache.go` | content-addressed cache (ingest + plan), under `$NCR_CACHE_DIR` or `os.UserCacheDir()/ncr` (e.g. `~/.cache/ncr`) |
 | `render.go`, `templates.go`, `md.go` | HTML rendering |
 | `types.go` | the JSON contract (see `docs/schema.md`) |
 | `prompts/` | LLM prompts, embedded via `go:embed` |
