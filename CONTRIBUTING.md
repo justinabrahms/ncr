@@ -25,7 +25,9 @@ built per `docs/design-review-comments.md`). `--static` writes the HTML file ins
 `--diff` local mode implies `--static`.
 
 Flags: `--static`, `-o out.html`, `--no-open`, `--refresh` (bust caches), `--no-spend`
-(never call the API — fail loudly on a plan cache miss), `--model <id>`, `--version`.
+(never call the API — fail loudly on a plan cache miss), `--model <id>`,
+`--max-tokens <n>` (model output ceiling; overrides `NCR_MAX_TOKENS`, default 32000),
+`--version`.
 
 ## Pipeline
 
