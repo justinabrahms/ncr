@@ -8,7 +8,7 @@ import (
 // Phase 2: every rendered diff line must carry a resolvable GitHub anchor.
 func TestRenderedLinesCarryAnchors(t *testing.T) {
 	idx := buildIndex(sampleDiff(t))
-	html, err := BuildHTML(samplePlan(t), idx, true)
+	html, err := BuildHTML(samplePlan(t), idx, true, "owner/repo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestRenderedLinesCarryAnchors(t *testing.T) {
 }
 
 func TestStaticOmitsInteractiveAssets(t *testing.T) {
-	html, err := BuildHTML(samplePlan(t), buildIndex(sampleDiff(t)), false)
+	html, err := BuildHTML(samplePlan(t), buildIndex(sampleDiff(t)), false, "owner/repo")
 	if err != nil {
 		t.Fatal(err)
 	}

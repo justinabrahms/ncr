@@ -212,7 +212,7 @@ func run(argv []string) int {
 	// Local self-review is served but has no PR to post to, so the commenting UI
 	// (which drives the GitHub review-submit flow) stays off.
 	interactive := !(*static || *diff != "" || local)
-	html, err := BuildHTML(rplan, index, interactive)
+	html, err := BuildHTML(rplan, index, interactive, repo)
 	if err != nil {
 		return fail(err)
 	}
