@@ -60,7 +60,7 @@ func run(argv []string) int {
 	fs := flag.NewFlagSet("ncr", flag.ContinueOnError)
 	diff := fs.String("diff", "", "path to a unified diff (local mode, skip GitHub)")
 	plan := fs.String("plan", "", "path to a reading-plan.json (skip the LLM)")
-	model := fs.String("model", "", "Anthropic model id")
+	model := fs.String("model", "", "Anthropic model id (overrides $NCR_MODEL; default "+defaultModel+")")
 	out := fs.String("o", "out/review.html", "output HTML path (with --static)")
 	fs.StringVar(out, "out", "out/review.html", "output HTML path (with --static)")
 	static := fs.Bool("static", false, "write the HTML file and exit instead of serving")
@@ -134,10 +134,7 @@ func run(argv []string) int {
 			return fail(err)
 		}
 	} else {
-		mdl := *model
-		if mdl == "" {
-			mdl = defaultModel
-		}
+		mdl := resolveModel(*model)
 		planModel = mdl
 		system, user := buildPrompt(index, files, comments, meta)
 		// schemaVersion salts the key so a change in request shape (e.g. the
@@ -222,6 +219,19 @@ func run(argv []string) int {
 		return fail(err)
 	}
 	return 0
+}
+
+// resolveModel picks the model id to send to the API. Precedence, highest first:
+// the --model flag, the NCR_MODEL env var, then the compiled-in default. The env
+// var lets users pin a model once instead of passing --model on every run.
+func resolveModel(flag string) string {
+	if flag != "" {
+		return flag
+	}
+	if env := os.Getenv("NCR_MODEL"); env != "" {
+		return env
+	}
+	return defaultModel
 }
 
 func ingestCached(repo string, pr int, refresh bool) (PRContext, error) {
