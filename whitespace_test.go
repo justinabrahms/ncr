@@ -28,7 +28,7 @@ func TestWSToggleRenderedWhenNoisePresent(t *testing.T) {
 	// sample.diff has no realignment noise → no toggle button (the .wstoggle CSS
 	// rule is always in the <style>, so match the button element specifically)
 	idx := buildIndex(sampleDiff(t))
-	html, _ := BuildHTML(samplePlan(t), idx, false)
+	html, _ := BuildHTML(samplePlan(t), idx, false, "owner/repo")
 	if strings.Contains(string(html), `class="wstoggle"`) {
 		t.Fatal("no whitespace noise in the sample, so no toggle button expected")
 	}

@@ -188,7 +188,7 @@ func run(argv []string) int {
 	logf("coverage: %d/%d blocks — %s", cov.Counts.Placed, cov.Counts.Indexed, status)
 
 	interactive := !(*static || *diff != "")
-	html, err := BuildHTML(rplan, index, interactive)
+	html, err := BuildHTML(rplan, index, interactive, repo)
 	if err != nil {
 		return fail(err)
 	}

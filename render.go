@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -223,6 +224,7 @@ func chromaCSS() string {
 
 type nodeView struct {
 	ID          string
+	ReadKey     string // stable per-node key (hash of member block shas); survives regeneration
 	Badge       template.HTML
 	Sym, Teaser string
 	Summary     template.HTML
@@ -230,6 +232,19 @@ type nodeView struct {
 	Meta        string
 	Calls       template.HTML
 	Diff        template.HTML
+}
+
+// nodeReadKey derives a stable identifier for a node from the shas of the change
+// blocks it contains. Block shas are deterministic (content hashes), so this key
+// is unchanged when a plan is regenerated as long as the same blocks are grouped
+// together — letting mark-read state persist across regenerations.
+func nodeReadKey(shas []string) string {
+	if len(shas) == 0 {
+		return ""
+	}
+	s := append([]string(nil), shas...)
+	sort.Strings(s)
+	return strings.TrimPrefix(shaOf(strings.Join(s, "\n")), "sha256:")[:16]
 }
 
 type chapterView struct {
@@ -241,6 +256,7 @@ type chapterView struct {
 
 type pageView struct {
 	Title, PRTag      string
+	Namespace         string // repo#pr; scopes localStorage read-state to this review
 	CovText, CovClass string
 	Overview          template.HTML
 	CSS               template.CSS
@@ -250,6 +266,7 @@ type pageView struct {
 
 func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols map[string]string) nodeView {
 	var segs []diffSeg
+	var shas []string
 	for _, seg := range u.Blocks {
 		id, from, to, ok := parseSegment(seg)
 		if !ok {
@@ -257,6 +274,7 @@ func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols ma
 		}
 		if b, ok := blockByID[id]; ok {
 			segs = append(segs, diffSeg{block: b, from: from, to: to})
+			shas = append(shas, b.Sha)
 		}
 	}
 	sym := u.Symbol
@@ -270,6 +288,7 @@ func nodeViewOf(u Unit, blockByID map[string]Block, edges []Edge, unitSymbols ma
 	meta := fmt.Sprintf("%s · %s · %s", u.File, strings.Join(u.Blocks, " "), u.LayerReason)
 	return nodeView{
 		ID:      u.ID,
+		ReadKey: nodeReadKey(shas),
 		Badge:   badge(u.Layer),
 		Sym:     sym,
 		Teaser:  mdText(u.Summary),
@@ -301,7 +320,7 @@ func callsHTML(unitID string, edges []Edge, unitSymbols map[string]string) templ
 	return template.HTML(`<div class="calls">calls: ` + strings.Join(parts, ", ") + `</div>`)
 }
 
-func BuildHTML(plan ReadingPlan, index Index, interactive bool) ([]byte, error) {
+func BuildHTML(plan ReadingPlan, index Index, interactive bool, repo string) ([]byte, error) {
 	unitByID := map[string]Unit{}
 	for _, u := range plan.Units {
 		unitByID[u.ID] = u
@@ -369,8 +388,13 @@ func BuildHTML(plan ReadingPlan, index Index, interactive bool) ([]byte, error) 
 		title = "Narrative code review"
 	}
 
+	ns := repo
+	if plan.PRNumber != 0 {
+		ns = fmt.Sprintf("%s#%d", repo, plan.PRNumber)
+	}
+
 	pv := pageView{
-		Title: title, PRTag: prTag, CovText: covText, CovClass: covClass,
+		Title: title, PRTag: prTag, Namespace: ns, CovText: covText, CovClass: covClass,
 		Overview: mdRender(plan.Overview),
 		CSS:      template.CSS(pageCSS + "\n" + chromaCSS()),
 		Chapters: chapters, Orphans: orphans,

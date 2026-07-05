@@ -50,14 +50,42 @@ main{max-width:960px;margin:0 auto;padding:24px 32px}
 .diffwrap{position:relative}
 .wstoggle{position:absolute;top:6px;right:10px;z-index:1;font:11px ui-monospace,monospace;padding:2px 8px;border-radius:6px;border:1px solid #3a3f36;background:#1e2019;color:#c9d1d9;cursor:pointer;opacity:.55}
 .wstoggle:hover{opacity:1}
-.diff.ws-hide .l.wsn{display:none}`
+.diff.ws-hide .l.wsn{display:none}
+/* --- reading affordances (issue #18): sticky TOC, mark-read, keyboard nav --- */
+#toc{position:fixed;top:0;left:0;bottom:0;width:250px;overflow-y:auto;background:var(--card);border-right:1px solid var(--line);padding:18px 14px;z-index:30;transform:translateX(-100%);transition:transform .16s ease}
+body.toc-open #toc{transform:none;box-shadow:2px 0 16px rgba(15,23,42,.14)}
+#toc .toch{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
+#toc .toch b{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#toc .tocprog{font-size:12px;color:var(--muted)}
+#toc ol{list-style:none;margin:0;padding:0}
+#toc li{margin:0 0 3px}
+#toc a{display:block;padding:6px 8px;border-radius:6px;color:var(--fg);text-decoration:none}
+#toc a:hover{background:var(--bg)}
+#toc a.active{background:#eef2ff;color:#3730a3}
+#toc .ctitle{display:block;font-size:13px;line-height:1.3}
+#toc .cbar{display:flex;align-items:center;gap:6px;margin-top:5px}
+#toc .cbar i{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+#toc .cbar i>span{display:block;height:100%;width:0;background:#22c55e;transition:width .2s}
+#toc .cbar b{font-weight:400;font-size:11px;color:var(--muted);min-width:2.6em;text-align:right}
+.node .mark{margin-left:6px;flex:none;font:12px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:4px 9px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--muted);cursor:pointer;white-space:nowrap}
+.node .mark:hover{border-color:#94a3b8;color:var(--fg)}
+.node.read .mark{background:#dcfce7;border-color:#86efac;color:#166534}
+.node.read>summary .sym,.node.read>summary .one{opacity:.55}
+.node.current{outline:2px solid #6366f1;outline-offset:1px}
+.kbdhint{font-size:12px;color:var(--muted);margin-top:10px}
+.kbdhint kbd{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--fg)}
+@media(min-width:1180px){
+  #toc{transform:none;box-shadow:none}
+  body.has-toc{padding-left:250px}
+  #tocbtn{display:none}
+}`
 
 var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} — narrative review</title>
 <style>{{.CSS}}</style></head>
-<body>
+<body data-ns="{{.Namespace}}">
 <header>
   <div class="titlebar">
     <h1>{{.Title}}<span class="prtag">{{.PRTag}}</span></h1>
@@ -82,6 +110,151 @@ document.querySelectorAll('.wstoggle').forEach(function(btn){btn.onclick=functio
   btn.textContent=hidden?'show whitespace':'hide whitespace';
 }});
 </script>
+<script>
+/* Reading affordances (issue #18): sticky chapter TOC with per-chapter progress,
+   keyboard navigation, and per-node mark-read persisted in localStorage keyed by
+   repo#pr + the node's stable block-sha hash (data-readkey). Self-contained. */
+(function(){
+  var nodes=Array.prototype.slice.call(document.querySelectorAll('details.node'));
+  if(!nodes.length) return;
+  var body=document.body;
+  var ns=body.getAttribute('data-ns')||location.pathname;
+  var PFX='ncr:read:'+ns+':';
+  function keyOf(n){return n.getAttribute('data-readkey')||n.id;}
+  function isRead(n){try{return localStorage.getItem(PFX+keyOf(n))==='1';}catch(e){return false;}}
+  function store(n,v){try{if(v)localStorage.setItem(PFX+keyOf(n),'1');else localStorage.removeItem(PFX+keyOf(n));}catch(e){}}
+  function applyRead(n){
+    var r=isRead(n);
+    n.classList.toggle('read',r);
+    var b=n.querySelector(':scope > summary > .mark');
+    if(b){b.textContent=r?'✓ Read':'Mark read';b.setAttribute('aria-pressed',r?'true':'false');}
+  }
+  function setRead(n,v){store(n,v);applyRead(n);updateProgress();}
+
+  // per-node "mark read" button, injected into each summary
+  nodes.forEach(function(n){
+    var s=n.querySelector(':scope > summary');if(!s)return;
+    var btn=document.createElement('button');
+    btn.type='button';btn.className='mark';btn.title='Toggle read (m)';
+    btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();setRead(n,!isRead(n));});
+    s.appendChild(btn);
+    applyRead(n);
+  });
+
+  // sticky chapter TOC with per-chapter progress
+  var tocItems=[],tocProg=null,haveTOC=false;
+  var sections=Array.prototype.slice.call(document.querySelectorAll('main > section.chapter'));
+  if(sections.length){
+    var toc=document.createElement('nav');toc.id='toc';
+    var head=document.createElement('div');head.className='toch';
+    var lbl=document.createElement('b');lbl.textContent='Chapters';
+    tocProg=document.createElement('span');tocProg.className='tocprog';
+    head.appendChild(lbl);head.appendChild(tocProg);toc.appendChild(head);
+    var ol=document.createElement('ol');
+    sections.forEach(function(sec,i){
+      if(!sec.id)sec.id='chapter-'+i;
+      var h2=sec.querySelector('h2');
+      var title=h2?h2.textContent.trim():('Chapter '+(i+1));
+      var secNodes=Array.prototype.slice.call(sec.querySelectorAll('details.node'));
+      var a=document.createElement('a');a.href='#'+sec.id;
+      var t=document.createElement('span');t.className='ctitle';t.textContent=title;
+      var bar=document.createElement('span');bar.className='cbar';
+      var track=document.createElement('i');var fill=document.createElement('span');track.appendChild(fill);
+      var num=document.createElement('b');
+      bar.appendChild(track);bar.appendChild(num);
+      a.appendChild(t);a.appendChild(bar);
+      a.addEventListener('click',function(){body.classList.remove('toc-open');});
+      var li=document.createElement('li');li.appendChild(a);ol.appendChild(li);
+      tocItems.push({sec:sec,nodes:secNodes,a:a,fill:fill,num:num});
+    });
+    toc.appendChild(ol);
+    body.appendChild(toc);
+    body.classList.add('has-toc');
+    haveTOC=true;
+  }
+
+  function updateProgress(){
+    var total=0,read=0;
+    tocItems.forEach(function(it){
+      var t=it.nodes.length,r=0;
+      it.nodes.forEach(function(n){if(isRead(n))r++;});
+      total+=t;read+=r;
+      it.fill.style.width=t?(100*r/t)+'%':'0';
+      it.num.textContent=r+'/'+t;
+    });
+    if(tocProg)tocProg.textContent=read+'/'+total+' read';
+  }
+
+  // extra controls: contents toggle + next-unread jump + keyboard hint
+  function nextUnread(){
+    var start=cur+1;
+    for(var k=0;k<nodes.length;k++){
+      var idx=((start+k)%nodes.length+nodes.length)%nodes.length;
+      if(!isRead(nodes[idx])){setCurrent(idx,true);return;}
+    }
+  }
+  var controls=document.querySelector('.controls');
+  if(controls){
+    if(haveTOC){
+      var cbtn=document.createElement('button');cbtn.id='tocbtn';cbtn.type='button';cbtn.textContent='☰ Contents';
+      cbtn.addEventListener('click',function(){body.classList.toggle('toc-open');});
+      controls.appendChild(cbtn);
+    }
+    var ubtn=document.createElement('button');ubtn.type='button';ubtn.textContent='Next unread';
+    ubtn.addEventListener('click',function(){nextUnread();});
+    controls.appendChild(ubtn);
+    var hint=document.createElement('div');hint.className='kbdhint';
+    hint.innerHTML='<kbd>j</kbd>/<kbd>k</kbd> move · <kbd>o</kbd> toggle · <kbd>m</kbd> mark read · <kbd>u</kbd> next unread';
+    controls.parentNode.appendChild(hint);
+  }
+
+  // keyboard navigation
+  var cur=-1;
+  function setCurrent(i,scroll){
+    if(i<0||i>=nodes.length)return;
+    if(cur>=0&&nodes[cur])nodes[cur].classList.remove('current');
+    cur=i;nodes[cur].classList.add('current');
+    if(scroll&&nodes[cur].scrollIntoView)nodes[cur].scrollIntoView({block:'center',behavior:'smooth'});
+  }
+  nodes.forEach(function(n,i){
+    var s=n.querySelector(':scope > summary');
+    if(s)s.addEventListener('click',function(){if(cur>=0&&nodes[cur])nodes[cur].classList.remove('current');cur=i;n.classList.add('current');});
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    var t=e.target;
+    if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+    if(e.key==='Enter'&&t&&(t.tagName==='BUTTON'||t.tagName==='A'||t.tagName==='SUMMARY'))return;
+    switch(e.key){
+      case 'j':case 'n':e.preventDefault();setCurrent(cur<0?0:Math.min(cur+1,nodes.length-1),true);break;
+      case 'k':case 'p':e.preventDefault();setCurrent(cur<0?0:Math.max(cur-1,0),true);break;
+      case 'o':case 'Enter':if(cur>=0){e.preventDefault();nodes[cur].open=!nodes[cur].open;}break;
+      case 'm':if(cur>=0){e.preventDefault();setRead(nodes[cur],!isRead(nodes[cur]));}break;
+      case 'u':e.preventDefault();nextUnread();break;
+    }
+  });
+
+  // highlight the chapter currently in view
+  if(tocItems.length&&'IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        for(var i=0;i<tocItems.length;i++){if(tocItems[i].sec===en.target){tocItems[i].vis=en.isIntersecting;break;}}
+      });
+      var active=null;
+      for(var i=0;i<tocItems.length;i++){if(tocItems[i].vis){active=tocItems[i];break;}}
+      tocItems.forEach(function(x){x.a.classList.toggle('active',x===active);});
+    },{rootMargin:'-8% 0px -80% 0px'});
+    tocItems.forEach(function(it){io.observe(it.sec);});
+  }
+
+  // keep read-state in sync across tabs/windows
+  window.addEventListener('storage',function(e){
+    if(e.key&&e.key.indexOf(PFX)===0){nodes.forEach(applyRead);updateProgress();}
+  });
+
+  updateProgress();
+})();
+</script>
 {{if .Interactive}}<link rel="stylesheet" href="/review.css"><script src="/review.js" defer></script>{{end}}
 </body></html>
 
@@ -93,7 +266,7 @@ document.querySelectorAll('.wstoggle').forEach(function(btn){btn.onclick=functio
 </section>{{end}}
 
 {{define "node"}}
-<details id="{{.ID}}" class="node">
+<details id="{{.ID}}" class="node" data-readkey="{{.ReadKey}}">
   <summary>
     {{.Badge}}
     <code class="sym">{{.Sym}}</code>
