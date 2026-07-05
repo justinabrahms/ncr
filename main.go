@@ -181,10 +181,7 @@ func run(argv []string) int {
 	reconcile(&rplan, index, commentBlocks)
 
 	cov := rplan.Coverage
-	status := "✓ complete"
-	if !cov.OK {
-		status = fmt.Sprintf("⚠ %d unplaced (auto-repaired)", len(cov.Missing))
-	}
+	status := coverageStatus(cov)
 	logf("coverage: %d/%d blocks — %s", cov.Counts.Placed, cov.Counts.Indexed, status)
 
 	interactive := !(*static || *diff != "")

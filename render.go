@@ -362,7 +362,12 @@ func BuildHTML(plan ReadingPlan, index Index, interactive bool) ([]byte, error) 
 	if cov.OK {
 		covClass, covText = "cov-ok", covText+" ✓"
 	} else {
-		covText += " — see ⚠ Unplaced"
+		if issues := coverageIssues(cov); len(issues) > 0 {
+			covText += " — " + strings.Join(issues, ", ")
+		}
+		if hasUnplacedChapter(cov) {
+			covText += " (see ⚠ Unplaced)"
+		}
 	}
 	title := plan.Title
 	if title == "" {
