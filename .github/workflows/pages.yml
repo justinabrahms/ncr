@@ -1,0 +1,51 @@
+name: Pages
+
+# Publishes a self-contained sample narrative review to GitHub Pages so people
+# can experience ncr's output without installing anything. The sample is
+# regenerated from the checked-in fixtures on every push to main (and on
+# release tags) so the live demo never goes stale.
+#
+# NOTE: This requires Pages to be enabled with the "GitHub Actions" source
+# under Settings -> Pages.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; skip runs queued behind a newer one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+      - name: Render the sample review
+        run: |
+          mkdir -p site
+          go run . \
+            --diff tests/fixtures/sample.diff \
+            --plan tests/fixtures/sample-plan.json \
+            -o site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

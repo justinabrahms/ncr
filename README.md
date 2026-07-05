@@ -13,6 +13,9 @@ inline. You read the request before the database column that serves it.
 
 ![ncr rendering a PR outside-in](docs/img/screenshot.png)
 
+**[See a live example →](https://justinabrahms.github.io/ncr/)** — a rendered review you can
+click through in your browser, no install required.
+
 ## Why
 
 Every review tool shows a diff as files in alphabetical order, hunks top to bottom. For a
